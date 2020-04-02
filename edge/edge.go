@@ -69,6 +69,8 @@ type Edge struct {
 	KeyPath      string
 	TrustPath    string
 	TLS          *tls.Config
+	InternalServer http.Server
+	ExternalServer http.Server
 }
 
 type Item struct {
@@ -293,6 +295,16 @@ func Start(e *Edge) *Edge {
 		InsecureSkipVerify: true, // This is not the same as skip verify, because of VerifyPeerCertificate!
 		VerifyPeerCertificate: common.VerifyPeerCertificate,
 	}
+
+	e.ExternalServer = http.Server{
+		Addr: fmt.Sprintf("%s:%d", e.Bind, e.Port),
+		Handler: http.NewServerMux(),
+	}
+	e.InternalServer = http.Server{
+		Addr: fmt.Sprintf("127.0.0.1", e.PortInternal),
+		Handler: http.NewServerMux(),
+	}
+
 	// Spawn our public and private listeners
 	go http.ListenAndServeTLS(fmt.Sprintf("%s:%d", e.Bind, e.Port), e.CertPath, e.KeyPath, e)
 	go http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", e.PortInternal), e)
