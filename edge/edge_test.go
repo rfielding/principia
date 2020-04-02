@@ -15,9 +15,9 @@ func TryTest(t *testing.T, err error) {
 }
 
 func TestEdge(t *testing.T) {
-	certPath := "../cert.pem"
-	keyPath := "../key.pem"
-	trustPath := "../cert.pem"
+	certPath := "./test_cert.pem"
+	keyPath := "./test_key.pem"
+	trustPath := "./test_cert.pem"
 
 	eAuth := edge.Start(&edge.Edge{
 		Name:      "eAuth",
