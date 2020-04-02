@@ -355,7 +355,7 @@ func Start(e *Edge) (*Edge, error) {
 		Addr:    fmt.Sprintf("127.0.0.1:%d", e.PortInternal),
 		Handler: e,
 	}
-	e.Logger("edge.Start: http://127.0.0.1:%d", e.Host, e.PortInternal)
+	e.Logger("edge.Start: http://127.0.0.1:%d", e.PortInternal)
 	go e.InternalServer.ListenAndServe()
 
 	return e, nil
