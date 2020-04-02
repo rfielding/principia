@@ -298,11 +298,11 @@ func Start(e *Edge) *Edge {
 
 	e.ExternalServer = http.Server{
 		Addr: fmt.Sprintf("%s:%d", e.Bind, e.Port),
-		Handler: http.NewServerMux(),
+		Handler: http.NewServeMux(),
 	}
 	e.InternalServer = http.Server{
-		Addr: fmt.Sprintf("127.0.0.1", e.PortInternal),
-		Handler: http.NewServerMux(),
+		Addr: fmt.Sprintf("127.0.0.1:%d", e.PortInternal),
+		Handler: http.NewServeMux(),
 	}
 
 	// Spawn our public and private listeners
