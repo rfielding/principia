@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"time"
+	"context"
 )
 
 var nextPort = 8022
@@ -68,7 +69,7 @@ type Edge struct {
 	CertPath     string
 	KeyPath      string
 	TrustPath    string
-	TLS          *tls.Config
+	HttpClient *http.Client
 	InternalServer http.Server
 	ExternalServer http.Server
 }
@@ -88,10 +89,7 @@ func (e *Edge) AvailableFromPeer(peer Peer) map[string]*Item {
 		return nil
 	}
 
-	tr := &http.Transport{TLSClientConfig: e.TLS}
-	cl := &http.Client{Transport: tr}
-
-	res, err := cl.Do(req)
+	res, err := e.HttpClient.Do(req)
 	if err != nil {
 		e.Logger("error searching peer: %v", err)
 		return nil
@@ -245,10 +243,12 @@ func (e *Edge) Close() error {
 				lsn.Lsn.Close()
 			}
 		}
+		e.ExternalServer.Shutdown(context.Background())
+		e.InternalServer.Shutdown(context.Background())
 		return nil
 }
 
-func Start(e *Edge) *Edge {
+func Start(e *Edge) (*Edge,error) {
 	// e.Port is an mTLS port that can talk to network
 	// - runs our public handler
 	if e.Port == 0 {
@@ -272,42 +272,71 @@ func Start(e *Edge) *Edge {
 	e.DefaultLease = time.Duration(30 * time.Second)
 	e.Peers = make([]Peer, 0)
 	e.Required = make([]Required, 0)
-	e.Logger("edge.Start: https://%s:%d", e.Host, e.Port)
 
 	// Get the SystemCertPool, continue with an empty pool on error
 	rootCAs, _ := x509.SystemCertPool()
 	if rootCAs == nil {
 		rootCAs = x509.NewCertPool()
 	}
+
 	// Read in the cert file
 	certs, err := ioutil.ReadFile(e.TrustPath)
 	if err != nil {
 		e.Logger("Failed to append %q to RootCAs: %v", e.TrustPath, err)
-		return nil
+		return nil, err
 	}
 	if ok := rootCAs.AppendCertsFromPEM(certs); !ok {
 		e.Logger("No certs appended, using system certs only")
-		return nil
 	}
-	// Disable hostname checks.... omg
-	e.TLS =d &tls.Config{
-		RootCAs:            rootCAs,
-		InsecureSkipVerify: true, // This is not the same as skip verify, because of VerifyPeerCertificate!
-		VerifyPeerCertificate: common.VerifyPeerCertificate,
+	certPem, err := ioutil.ReadFile(e.CertPath)
+	if err != nil {
+		return nil,err
 	}
-d
-	e.ExternalServer = http.Server{
-		Addr: fmt.Sprintf("%s:%d", e.Bind, e.Port),
-		Handler: http.NewServeMux(),
-		TLSConfig: e.TLS,
+	keyPem, err := ioutil.ReadFile(e.KeyPath)
+	if err != nil {
+		return nil,err
 	}
-	e.InternalServer = http.Server{
-		Addr: fmt.Sprintf("127.0.0.1:%d", e.PortInternal),
-		Handler: http.NewServeMux(),
+	cert, err := tls.X509KeyPair(certPem, keyPem)
+	if err != nil {
+		return nil,err
 	}
 
+  // Create our client HttpConfig and transport
+	e.HttpClient = &http.Client{
+	  Transport: &http.Transport{
+		  TLSClientConfig:&tls.Config{
+				RootCAs:            rootCAs,
+				InsecureSkipVerify: true, // This is not the same as skip verify, because of VerifyPeerCertificate!
+				VerifyPeerCertificate: common.VerifyPeerCertificate,
+				Certificates: []tls.Certificate{cert},
+			},
+		}	,
+	}
+
+  // Our external server needs TLS setup
+	e.ExternalServer = http.Server{
+		Addr: fmt.Sprintf("%s:%d", e.Bind, e.Port),
+		Handler: e,
+		TLSConfig: &tls.Config{
+			RootCAs:            rootCAs,
+			InsecureSkipVerify: true, // This is not the same as skip verify, because of VerifyPeerCertificate!
+			VerifyPeerCertificate: common.VerifyPeerCertificate,
+			Certificates: []tls.Certificate{cert},
+		},
+	}
+	e.Logger("edge.Start: https://%s:%d", e.Host, e.Port)
+  go e.ExternalServer.ListenAndServeTLS(e.CertPath, e.KeyPath)
+
+	// Our internal server can use plaintext
+	e.InternalServer = http.Server{
+		Addr: fmt.Sprintf("127.0.0.1:%d", e.PortInternal),
+		Handler: e,
+	}	
+	e.Logger("edge.Start: http://127.0.0.1:%d", e.Host, e.PortInternal)
+	go e.InternalServer.ListenAndServe()
+
 	// Spawn our public and private listeners
-	go http.ListenAndServeTLS(fmt.Sprintf("%s:%d", e.Bind, e.Port), e.CertPath, e.KeyPath, e)
-	go http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", e.PortInternal), e)
-	return e
+	//go http.ListenAndServeTLS(fmt.Sprintf("%s:%d", e.Bind, e.Port), e.CertPath, e.KeyPath, e)
+	//go http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", e.PortInternal), e)
+	return e,nil
 }

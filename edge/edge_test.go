@@ -21,12 +21,13 @@ func TestEdge(t *testing.T) {
 	// every peer trusts trustPath certs
 	trustPath := "./test_cert.pem"
 
-	eAuth := edge.Start(&edge.Edge{
+	eAuth,err := edge.Start(&edge.Edge{
 		Name:      "eAuth",
 		CertPath:  certPath,
 		KeyPath:   keyPath,
 		TrustPath: trustPath,
 	})
+	TryTest(t,err)
 	defer eAuth.Close()
 
 	TryTest(t, eAuth.Spawn(edge.Listener{
@@ -35,12 +36,13 @@ func TestEdge(t *testing.T) {
 	}))
 
 	// This is a sidecar for a database on random port
-	eDB := edge.Start(&edge.Edge{
+	eDB,err := edge.Start(&edge.Edge{
 		Name:      "eDB_eWeb",
 		CertPath:  certPath,
 		KeyPath:   keyPath,
 		TrustPath: trustPath,
 	})
+	TryTest(t,err)
 	defer eDB.Close()
 
 	TryTest(t, eDB.Spawn(edge.Listener{
@@ -49,12 +51,13 @@ func TestEdge(t *testing.T) {
 	}))
 
 	// This is a proxy on 8122 to a web server on 8123, talking to db on
-	eWeb := edge.Start(&edge.Edge{
+	eWeb,err := edge.Start(&edge.Edge{
 		Name:      "eWeb",
 		CertPath:  certPath,
 		KeyPath:   keyPath,
 		TrustPath: trustPath,
 	})
+	TryTest(t,err)
 	defer eWeb.Close()
 
 	// Allocate an arbitrary port for the db
