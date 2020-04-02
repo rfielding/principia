@@ -1,6 +1,7 @@
 package edge
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -9,13 +10,13 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"strings"
 	"time"
-	"context"
 )
 
 /*
-    We begin allocating ports here, and just increment
- */
+   We begin allocating ports here, and just increment
+*/
 var StartPort = 8022
 
 type Port int
@@ -29,9 +30,6 @@ func AllocPort() Port {
 	StartPort++
 	return Port(p)
 }
-
-
-
 
 // Peer is reached by an endpoint, and may contain Listeners
 // that we can reach
@@ -68,62 +66,70 @@ type Required struct {
 // Edge is pointed to by Peer, and contains the reverse proxy to
 // spawned Listener objects
 type Edge struct {
-	Name         string
-	Host         string
-	Bind         string
-	Port         Port
-	PortInternal Port
-	Logger       common.Logger
-	Listeners    []Listener
-	DefaultLease time.Duration
-	Peers        []Peer
-	Required     []Required
-	CertPath     string
-	KeyPath      string
-	TrustPath    string
-	HttpClient *http.Client
+	Name           string
+	Host           string
+	Bind           string
+	Port           Port
+	PortInternal   Port
+	Logger         common.Logger
+	Listeners      []Listener
+	DefaultLease   time.Duration
+	Peers          []Peer
+	Required       []Required
+	CertPath       string
+	KeyPath        string
+	TrustPath      string
+	HttpClient     *http.Client
 	InternalServer http.Server
 	ExternalServer http.Server
 }
 
 type Item struct {
-	Endpoint   string    `json:"Endpoint,omitempty"`
-	Volunteers []string  `json:"Volunteers,omitempty"`
-	Expose     bool      `json:"Expose,omitempty"`
+	Endpoint   string   `json:"Endpoint,omitempty"`
+	Volunteers []string `json:"Volunteers,omitempty"`
+	Expose     bool     `json:"Expose,omitempty"`
 }
 
-func (e *Edge) GetFromPeer(peer Peer, cmd string) ([]byte,error) {
-	url := fmt.Sprintf("https://%s:%d%s", peer.Host, peer.Port,cmd)
+func (p Peer) Name() string {
+	return fmt.Sprintf("%s:%d", p.Host, p.Port)
+}
+
+func (e *Edge) PeerName() string {
+	return fmt.Sprintf("%s:%d", e.Host, e.Port)
+}
+
+func (e *Edge) GetFromPeer(peerName string, cmd string) ([]byte, error) {
+	url := fmt.Sprintf("https://%s%s", peerName, cmd)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		e.Logger("error creating search %s for peer: %v", url, err)
-		return nil,err
+		return nil, err
 	}
 
 	res, err := e.HttpClient.Do(req)
 	if err != nil {
 		e.Logger("error searching peer: %v", err)
-		return nil,err
+		return nil, err
 	}
 	if res.StatusCode != http.StatusOK {
 		res.Body.Close()
 		return nil, fmt.Errorf("error talking to %s peer: %d", url, res.StatusCode)
 	}
 	j, err := ioutil.ReadAll(res.Body)
-	return j,err
+	return j, err
 }
 
-func (e *Edge) AvailableFromPeer(peer Peer) (map[string]*Item,error) {
-	j, err := e.GetFromPeer(peer, "/available")
+func (e *Edge) AvailableFromPeer(peer Peer) (map[string]*Item, error) {
+	j, err := e.GetFromPeer(peer.Name(), "/available")
 	if err != nil {
-		return nil,err
+		return nil, err
 	}
 	var items map[string]*Item
 	err = json.Unmarshal(j, &items)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to marshal response from: %v", err)
 	}
-	return items,nil
+	return items, nil
 }
 
 // Available should be periodically polled for
@@ -146,7 +152,6 @@ func (e *Edge) Available() map[string]*Item {
 	}
 	// We narrow it down to which peers implement this
 	for p, peer := range e.Peers {
-		peerAddr := fmt.Sprintf("%s:%d", peer.Host, peer.Port)
 		items, err := e.AvailableFromPeer(peer)
 		if err != nil {
 			e.Logger("peer unavailable: %v", err)
@@ -162,7 +167,7 @@ func (e *Edge) Available() map[string]*Item {
 							available[kName].Volunteers =
 								append(
 									available[kName].Volunteers,
-									peerAddr,
+									peer.Name(),
 								)
 						}
 					}
@@ -202,6 +207,11 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	for _, lsn := range e.Listeners {
+		if lsn.Expose && strings.HasPrefix(r.RequestURI, "/"+lsn.Name) {
+			e.Logger("GET /%s -> %d", lsn.Name, lsn.Port)
+		}
+	}
 }
 
 // Tells us to listen internally on a port
@@ -212,13 +222,13 @@ func (e *Edge) Spawn(lsn Listener) error {
 	if lsn.Port == 0 {
 		lsn.Port = AllocPort()
 		if lsn.PortIntoCmdArg > 0 {
-			lsn.Cmd[lsn.PortIntoCmdArg] = fmt.Sprintf("%d", lsn.Port)
+			lsn.Cmd[lsn.PortIntoCmdArg] = lsn.Port.String()
 		}
 	}
 	if lsn.Bind == "" {
 		lsn.Bind = "127.0.0.1"
 	}
-	spawned, err := net.Listen("tcp", fmt.Sprintf("%s:%d", lsn.Bind, lsn.Port))
+	spawned, err := net.Listen("tcp", fmt.Sprintf("%s:%s", lsn.Bind, lsn.Port.String()))
 	if err != nil {
 		return err
 	}
@@ -229,7 +239,7 @@ func (e *Edge) Spawn(lsn Listener) error {
 }
 
 func (e *Edge) Peer(host string, port Port) {
-	e.Logger("edge.Peer: https://%s:%d", host, port)
+	e.Logger("edge.Peer: https://%s:%s", host, port.String())
 	e.Peers = append(e.Peers, Peer{
 		Host:      host,
 		Port:      port,
@@ -245,20 +255,18 @@ func (e *Edge) Requires(listener string, port Port) {
 	})
 }
 
-
 func (e *Edge) Close() error {
-		for _,lsn := range e.Listeners {
-			if lsn.Lsn != nil {
-				lsn.Lsn.Close()
-			}
+	for _, lsn := range e.Listeners {
+		if lsn.Lsn != nil {
+			lsn.Lsn.Close()
 		}
-		e.ExternalServer.Shutdown(context.Background())
-		e.InternalServer.Shutdown(context.Background())
-		return nil
+	}
+	e.ExternalServer.Shutdown(context.Background())
+	e.InternalServer.Shutdown(context.Background())
+	return nil
 }
 
-
-func Start(e *Edge) (*Edge,error) {
+func Start(e *Edge) (*Edge, error) {
 	// e.Port is an mTLS port that can talk to network
 	// - runs our public handler
 	if e.Port == 0 {
@@ -279,7 +287,7 @@ func Start(e *Edge) (*Edge,error) {
 		e.Logger = common.NewLogger(e.Name)
 	}
 	e.Listeners = make([]Listener, 0)
-  e.Listeners = append(e.Listeners, Listener{
+	e.Listeners = append(e.Listeners, Listener{
 		Bind: "127.0.0.1",
 		Port: e.PortInternal,
 		Name: "sidecarInternal",
@@ -305,50 +313,50 @@ func Start(e *Edge) (*Edge,error) {
 	}
 	certPem, err := ioutil.ReadFile(e.CertPath)
 	if err != nil {
-		return nil,err
+		return nil, err
 	}
 	keyPem, err := ioutil.ReadFile(e.KeyPath)
 	if err != nil {
-		return nil,err
+		return nil, err
 	}
 	cert, err := tls.X509KeyPair(certPem, keyPem)
 	if err != nil {
-		return nil,err
+		return nil, err
 	}
 
-  // Create our client HttpConfig and transport
+	// Create our client HttpConfig and transport
 	e.HttpClient = &http.Client{
-	  Transport: &http.Transport{
-		  TLSClientConfig:&tls.Config{
-				RootCAs:            rootCAs,
-				InsecureSkipVerify: true, // This is not the same as skip verify, because of VerifyPeerCertificate!
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				RootCAs:               rootCAs,
+				InsecureSkipVerify:    true, // This is not the same as skip verify, because of VerifyPeerCertificate!
 				VerifyPeerCertificate: common.VerifyPeerCertificate,
-				Certificates: []tls.Certificate{cert},
+				Certificates:          []tls.Certificate{cert},
 			},
-		}	,
-	}
-
-  // Our external server needs TLS setup
-	e.ExternalServer = http.Server{
-		Addr: fmt.Sprintf("%s:%d", e.Bind, e.Port),
-		Handler: e,
-		TLSConfig: &tls.Config{
-			RootCAs:            rootCAs,
-			InsecureSkipVerify: true, // This is not the same as skip verify, because of VerifyPeerCertificate!
-			VerifyPeerCertificate: common.VerifyPeerCertificate,
-			Certificates: []tls.Certificate{cert},
 		},
 	}
-	e.Logger("edge.Start: https://%s:%d", e.Host, e.Port)
-  go e.ExternalServer.ListenAndServeTLS(e.CertPath, e.KeyPath)
+
+	// Our external server needs TLS setup
+	e.ExternalServer = http.Server{
+		Addr:    fmt.Sprintf("%s:%d", e.Bind, e.Port),
+		Handler: e,
+		TLSConfig: &tls.Config{
+			RootCAs:               rootCAs,
+			InsecureSkipVerify:    true, // This is not the same as skip verify, because of VerifyPeerCertificate!
+			VerifyPeerCertificate: common.VerifyPeerCertificate,
+			Certificates:          []tls.Certificate{cert},
+		},
+	}
+	e.Logger("edge.Start: https://%s:%s", e.Host, e.Port.String())
+	go e.ExternalServer.ListenAndServeTLS(e.CertPath, e.KeyPath)
 
 	// Our internal server can use plaintext
 	e.InternalServer = http.Server{
-		Addr: fmt.Sprintf("127.0.0.1:%d", e.PortInternal),
+		Addr:    fmt.Sprintf("127.0.0.1:%d", e.PortInternal),
 		Handler: e,
 	}
-	e.Logger("edge.Start: http://127.0.0.1:%d", e.Host, e.PortInternal)
+	e.Logger("edge.Start: http://127.0.0.1:%s", e.Host, e.PortInternal.String())
 	go e.InternalServer.ListenAndServe()
 
-	return e,nil
+	return e, nil
 }
