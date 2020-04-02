@@ -15,8 +15,10 @@ func TryTest(t *testing.T, err error) {
 }
 
 func TestEdge(t *testing.T) {
+	// can be per-identity, must be signed by trustPath
 	certPath := "./test_cert.pem"
 	keyPath := "./test_key.pem"
+	// every peer trusts trustPath certs
 	trustPath := "./test_cert.pem"
 
 	eAuth := edge.Start(&edge.Edge{
