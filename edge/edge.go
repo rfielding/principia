@@ -80,39 +80,38 @@ type Item struct {
 	Expose     bool
 }
 
-// TODO: upgrade all to https
-func (e *Edge) AvailableFromPeer(peer Peer) map[string]*Item {
-	url := fmt.Sprintf("https://%s:%d/available", peer.Host, peer.Port)
+func (e *Edge) GetFromPeer(peer Peer, cmd string) ([]byte,error) {
+	url := fmt.Sprintf("https://%s:%d%s", peer.Host, peer.Port,cmd)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		e.Logger("error creating search %s for peer: %v", url, err)
-		return nil
+		return nil,err
 	}
 
 	res, err := e.HttpClient.Do(req)
 	if err != nil {
 		e.Logger("error searching peer: %v", err)
-		return nil
+		return nil,err
 	}
 	if res.StatusCode != http.StatusOK {
-		e.Logger("error talking to %s peer: %d", url, res.StatusCode)
 		res.Body.Close()
-		return nil
+		return nil, fmt.Errorf("error talking to %s peer: %d", url, res.StatusCode)
 	}
 	j, err := ioutil.ReadAll(res.Body)
+	return j,err
+}
+
+func (e *Edge) AvailableFromPeer(peer Peer) (map[string]*Item,error) {
+	j, err := e.GetFromPeer(peer, "/available")
 	if err != nil {
-		e.Logger("unable to read body from %s: %v", url, err)
-		res.Body.Close()
-		return nil
+		return nil,err
 	}
-	res.Body.Close()
 	var items map[string]*Item
 	err = json.Unmarshal(j, &items)
 	if err != nil {
-		e.Logger("Unable to marshal response from %s: %v", url, err)
-		return nil
+		return nil, fmt.Errorf("Unable to marshal response from: %v", err)
 	}
-	return items
+	return items,nil
 }
 
 // Available should be periodically polled for
@@ -136,7 +135,10 @@ func (e *Edge) Available() map[string]*Item {
 	// We narrow it down to which peers implement this
 	for p, peer := range e.Peers {
 		peerAddr := fmt.Sprintf("%s:%d", peer.Host, peer.Port)
-		items := e.AvailableFromPeer(peer)
+		items, err := e.AvailableFromPeer(peer)
+		if err != nil {
+			e.Logger("peer unavailable: %v", err)
+		}
 		if items == nil && time.Now().Unix() > e.Peers[p].ExpiresAt.Unix() {
 			// it's expired and we could not contact it
 		} else {
@@ -248,6 +250,7 @@ func (e *Edge) Close() error {
 		return nil
 }
 
+
 func Start(e *Edge) (*Edge,error) {
 	// e.Port is an mTLS port that can talk to network
 	// - runs our public handler
@@ -278,7 +281,6 @@ func Start(e *Edge) (*Edge,error) {
 	if rootCAs == nil {
 		rootCAs = x509.NewCertPool()
 	}
-
 	// Read in the cert file
 	certs, err := ioutil.ReadFile(e.TrustPath)
 	if err != nil {
@@ -331,12 +333,9 @@ func Start(e *Edge) (*Edge,error) {
 	e.InternalServer = http.Server{
 		Addr: fmt.Sprintf("127.0.0.1:%d", e.PortInternal),
 		Handler: e,
-	}	
+	}
 	e.Logger("edge.Start: http://127.0.0.1:%d", e.Host, e.PortInternal)
 	go e.InternalServer.ListenAndServe()
 
-	// Spawn our public and private listeners
-	//go http.ListenAndServeTLS(fmt.Sprintf("%s:%d", e.Bind, e.Port), e.CertPath, e.KeyPath, e)
-	//go http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", e.PortInternal), e)
 	return e,nil
 }
