@@ -228,7 +228,7 @@ func (e *Edge) Spawn(lsn Listener) error {
 	if lsn.Bind == "" {
 		lsn.Bind = "127.0.0.1"
 	}
-	spawned, err := net.Listen("tcp", fmt.Sprintf("%s:%s", lsn.Bind, lsn.Port.String()))
+	spawned, err := net.Listen("tcp", fmt.Sprintf("%s:%d", lsn.Bind, lsn.Port))
 	if err != nil {
 		return err
 	}
@@ -239,7 +239,7 @@ func (e *Edge) Spawn(lsn Listener) error {
 }
 
 func (e *Edge) Peer(host string, port Port) {
-	e.Logger("edge.Peer: https://%s:%s", host, port.String())
+	e.Logger("edge.Peer: https://%s:%d", host, port)
 	e.Peers = append(e.Peers, Peer{
 		Host:      host,
 		Port:      port,
@@ -347,7 +347,7 @@ func Start(e *Edge) (*Edge, error) {
 			Certificates:          []tls.Certificate{cert},
 		},
 	}
-	e.Logger("edge.Start: https://%s:%s", e.Host, e.Port.String())
+	e.Logger("edge.Start: https://%s:%d", e.Host, e.Port)
 	go e.ExternalServer.ListenAndServeTLS(e.CertPath, e.KeyPath)
 
 	// Our internal server can use plaintext
@@ -355,7 +355,7 @@ func Start(e *Edge) (*Edge, error) {
 		Addr:    fmt.Sprintf("127.0.0.1:%d", e.PortInternal),
 		Handler: e,
 	}
-	e.Logger("edge.Start: http://127.0.0.1:%s", e.Host, e.PortInternal.String())
+	e.Logger("edge.Start: http://127.0.0.1:%d", e.Host, e.PortInternal)
 	go e.InternalServer.ListenAndServe()
 
 	return e, nil
