@@ -13,13 +13,25 @@ import (
 	"context"
 )
 
-var nextPort = 8022
+/*
+    We begin allocating ports here, and just increment
+ */
+var StartPort = 8022
 
 type Port int
 
 func (p Port) String() string {
 	return fmt.Sprintf("%d", p)
 }
+
+func AllocPort() Port {
+	p := StartPort
+	StartPort++
+	return Port(p)
+}
+
+
+
 
 // Peer is reached by an endpoint, and may contain Listeners
 // that we can reach
@@ -75,9 +87,9 @@ type Edge struct {
 }
 
 type Item struct {
-	Endpoint   string
-	Volunteers []string
-	Expose     bool
+	Endpoint   string    `json:"Endpoint,omitempty"`
+	Volunteers []string  `json:"Volunteers,omitempty"`
+	Expose     bool      `json:"Expose,omitempty"`
 }
 
 func (e *Edge) GetFromPeer(peer Peer, cmd string) ([]byte,error) {
@@ -233,12 +245,6 @@ func (e *Edge) Requires(listener string, port Port) {
 	})
 }
 
-// TODO: un-allocated port is what is actually necessary
-func AllocPort() Port {
-	p := nextPort
-	nextPort++
-	return Port(p)
-}
 
 func (e *Edge) Close() error {
 		for _,lsn := range e.Listeners {
@@ -273,6 +279,12 @@ func Start(e *Edge) (*Edge,error) {
 		e.Logger = common.NewLogger(e.Name)
 	}
 	e.Listeners = make([]Listener, 0)
+  e.Listeners = append(e.Listeners, Listener{
+		Bind: "127.0.0.1",
+		Port: e.PortInternal,
+		Name: "sidecarInternal",
+	})
+
 	e.DefaultLease = time.Duration(30 * time.Second)
 	e.Peers = make([]Peer, 0)
 	e.Required = make([]Required, 0)
