@@ -35,6 +35,20 @@ func TestEdge(t *testing.T) {
 		Cmd:         []string{"/usr/bin/authsvr"},
 	}))
 
+	eAuth2, err := edge.Start(&edge.Edge{
+		Name:      "eAuth",
+		CertPath:  certPath,
+		KeyPath:   keyPath,
+		TrustPath: trustPath,
+	})
+	TryTest(t, err)
+	defer eAuth2.Close()
+
+	TryTest(t, eAuth2.Spawn(edge.Listener{
+		PortIntoEnv: "EAUTH_PORT",
+		Cmd:         []string{"/usr/bin/authsvr"},
+	}))
+
 	// This is a sidecar for a database on random port
 	eDB, err := edge.Start(&edge.Edge{
 		Name:      "eDB_eWeb",
@@ -80,10 +94,15 @@ func TestEdge(t *testing.T) {
 	eWeb.Requires("eAuth", eAuth_port)
 
 	// Log info about it
-	fmt.Printf("Available eAuth:%d %s", eAuth.Port, common.AsJsonPretty(eAuth.Available()))
-	fmt.Printf("Available eDB:%d %s", eDB.Port, common.AsJsonPretty(eDB.Available()))
-	fmt.Printf("Available eWeb:%d %s", eWeb.Port, common.AsJsonPretty(eWeb.Available()))
-	eDB_eWeb_data, err := eWeb.GetFromPeer(eWeb.PeerName(), "/"+eDB.PeerName())
+	fmt.Printf("Available eAuth:%d %s\n", eAuth.Port, common.AsJsonPretty(eAuth.Available()))
+	fmt.Printf("Available eDB:%d %s\n", eDB.Port, common.AsJsonPretty(eDB.Available()))
+	fmt.Printf("Available eWeb:%d %s\n", eWeb.Port, common.AsJsonPretty(eWeb.Available()))
+
+	eWeb_data, err := eWeb.GetFromPeer(eWeb.PeerName(), "/"+eWeb.Name+"/hello")
 	TryTest(t, err)
-	fmt.Printf("Got: %s", eDB_eWeb_data)
+	fmt.Printf("Got: %s\n", eWeb_data)
+
+	eDB_eWeb_data, err := eWeb.GetFromPeer(eWeb.PeerName(), "/"+eWeb.Required[0].Name+"/hello")
+	TryTest(t, err)
+	fmt.Printf("Got: %s\n", eDB_eWeb_data)
 }

@@ -82,6 +82,7 @@ type Edge struct {
 	HttpClient     *http.Client
 	InternalServer http.Server
 	ExternalServer http.Server
+	LastAvailable  map[string]*Item
 }
 
 type Item struct {
@@ -201,15 +202,29 @@ func (e *Edge) Available() map[string]*Item {
 
 // ServeHTTP serves up http for this service
 func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	e.Logger("%s %s", r.Method, r.RequestURI)
+	// Find static items
 	if r.Method == "GET" {
 		if r.RequestURI == "/available" {
 			w.Write(common.AsJsonPretty(e.Available()))
 			return
 		}
 	}
+	// Find local listeners
 	for _, lsn := range e.Listeners {
-		if lsn.Expose && strings.HasPrefix(r.RequestURI, "/"+lsn.Name) {
-			e.Logger("GET /%s -> %d", lsn.Name, lsn.Port)
+		if strings.HasPrefix(r.RequestURI, "/"+lsn.Name+"/") {
+			e.Logger("GET %s -> %s %d %s", r.RequestURI, lsn.Name, lsn.Port, "/"+r.RequestURI[2+len(lsn.Name):])
+			return
+		}
+	}
+	// Search volunteers
+	available := e.Available()
+	for name := range available {
+		if strings.HasPrefix(r.RequestURI, "/"+name+"/") {
+			for _, item := range available[name].Volunteers {
+				e.Logger("GET %s -> %s %s", r.RequestURI, item, r.RequestURI)
+				return
+			}
 		}
 	}
 }
@@ -284,7 +299,7 @@ func Start(e *Edge) (*Edge, error) {
 		e.Bind = "0.0.0.0"
 	}
 	if e.Name != "" && e.Logger == nil {
-		e.Logger = common.NewLogger(e.Name)
+		e.Logger = common.NewLogger(fmt.Sprintf("%s:%s:%d", e.Name, e.Host, e.Port))
 	}
 	e.Listeners = make([]Listener, 0)
 	e.Listeners = append(e.Listeners, Listener{
