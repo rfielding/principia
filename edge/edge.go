@@ -219,6 +219,8 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// Search volunteers
+	// Periodic poller start
+	e.LastAvailable = e.Available()
 	available := e.LastAvailable
 	for name := range available {
 		if strings.HasPrefix(r.RequestURI, "/"+name+"/") {
@@ -251,6 +253,8 @@ func (e *Edge) Spawn(lsn Listener) error {
 	e.Logger("edge.Spawn: %s", common.AsJsonPretty(lsn))
 	lsn.Lsn = spawned
 	e.Listeners = append(e.Listeners, lsn)
+	// Periodic poller start
+	e.LastAvailable = e.Available()
 	return nil
 }
 
@@ -261,6 +265,8 @@ func (e *Edge) Peer(host string, port Port) {
 		Port:      port,
 		ExpiresAt: time.Now().Add(e.DefaultLease),
 	})
+	// Periodic poller start
+	e.LastAvailable = e.Available()
 }
 
 func (e *Edge) Requires(listener string, port Port) {

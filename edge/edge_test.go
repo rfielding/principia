@@ -90,6 +90,7 @@ func TestEdge(t *testing.T) {
 	}))
 	eWeb.Peer(eDB.Host, eDB.Port)
 	eWeb.Peer(eAuth.Host, eAuth.Port)
+	eWeb.Peer(eAuth2.Host, eAuth.Port)
 	eWeb.Requires("eDB_eWeb", eDB_eWeb_port)
 	eWeb.Requires("eAuth", eAuth_port)
 
