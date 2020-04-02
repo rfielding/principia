@@ -14,12 +14,18 @@ import (
 
 var nextPort = 8022
 
+type Port int
+
+func (p Port) String() string {
+	return fmt.Sprintf("%d", p)
+}
+
 // Peer is reached by an endpoint, and may contain Listeners
 // that we can reach
 // Peer is unreachable when expired, or consistently unreachable
 type Peer struct {
 	Host      string
-	Port      int
+	Port      Port
 	ExpiresAt time.Time
 }
 
@@ -29,7 +35,7 @@ type Peer struct {
 type Listener struct {
 	// Almost always bound to 127.0.0.1:port
 	Bind string
-	Port int
+	Port Port
 	// This is how we look up services, by name/instance
 	Name   string
 	Expose bool
@@ -43,7 +49,7 @@ type Listener struct {
 
 type Required struct {
 	Name string
-	Port int
+	Port Port
 }
 
 // Edge is pointed to by Peer, and contains the reverse proxy to
@@ -52,8 +58,8 @@ type Edge struct {
 	Name         string
 	Host         string
 	Bind         string
-	Port         int
-	PortInternal int
+	Port         Port
+	PortInternal Port
 	Logger       common.Logger
 	Listeners    []Listener
 	DefaultLease time.Duration
@@ -208,7 +214,7 @@ func (e *Edge) Spawn(lsn Listener) error {
 	return nil
 }
 
-func (e *Edge) Peer(host string, port int) {
+func (e *Edge) Peer(host string, port Port) {
 	e.Logger("edge.Peer: https://%s:%d", host, port)
 	e.Peers = append(e.Peers, Peer{
 		Host:      host,
@@ -217,7 +223,7 @@ func (e *Edge) Peer(host string, port int) {
 	})
 }
 
-func (e *Edge) Requires(listener string, port int) {
+func (e *Edge) Requires(listener string, port Port) {
 	e.Logger("e.Requires: %s %d", listener, port)
 	e.Required = append(e.Required, Required{
 		Name: listener,
@@ -225,10 +231,19 @@ func (e *Edge) Requires(listener string, port int) {
 	})
 }
 
-func AllocPort() int {
+func AllocPort() Port {
 	p := nextPort
 	nextPort++
-	return p
+	return Port(p)
+}
+
+func (e *Edge) Close() error {
+		for _,lsn := range e.Listeners {
+			if lsn.Lsn != nil {
+				lsn.Lsn.Close()
+			}
+		}
+		return nil
 }
 
 func Start(e *Edge) *Edge {

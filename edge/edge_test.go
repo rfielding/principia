@@ -27,6 +27,8 @@ func TestEdge(t *testing.T) {
 		KeyPath:   keyPath,
 		TrustPath: trustPath,
 	})
+	defer eAuth.Close()
+
 	TryTest(t, eAuth.Spawn(edge.Listener{
 		PortIntoEnv: "EAUTH_PORT",
 		Cmd:         []string{"/usr/bin/authsvr"},
@@ -39,6 +41,8 @@ func TestEdge(t *testing.T) {
 		KeyPath:   keyPath,
 		TrustPath: trustPath,
 	})
+	defer eDB.Close()
+
 	TryTest(t, eDB.Spawn(edge.Listener{
 		PortIntoCmdArg: 2, // write into an arg
 		Cmd:            []string{"/usr/bin/edb", "-p", "????", "-s", "eWeb"},
@@ -51,19 +55,20 @@ func TestEdge(t *testing.T) {
 		KeyPath:   keyPath,
 		TrustPath: trustPath,
 	})
+	defer eWeb.Close()
+
 	// Allocate an arbitrary port for the db
 	eDB_eWeb_port := edge.AllocPort()
-	eDB_eWeb_ports := fmt.Sprintf("%d", eDB_eWeb_port)
 	eAuth_port := edge.AllocPort()
-	eAuth_ports := fmt.Sprintf("%d", eAuth_port)
+
 	// Spawn the web server talking to the db
 	TryTest(t, eWeb.Spawn(edge.Listener{
 		Expose:      true,
 		Cmd:         []string{"/usr/bin/eWeb"},
 		PortIntoEnv: "EWEB_PORT",
 		Env: []string{
-			"EDB_PORT", eDB_eWeb_ports,
-			"EAUTH_PORT", eAuth_ports,
+			"EDB_PORT", eDB_eWeb_port.String(),
+			"EAUTH_PORT", eAuth_port.String(),
 		},
 	}))
 	eWeb.Peer(eDB.Host, eDB.Port)
