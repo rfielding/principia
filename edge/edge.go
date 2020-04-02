@@ -83,6 +83,7 @@ type Edge struct {
 	InternalServer http.Server
 	ExternalServer http.Server
 	LastAvailable  map[string]*Item
+	Done chan bool
 }
 
 type Item struct {
@@ -278,10 +279,12 @@ func (e *Edge) Close() error {
 	}
 	e.ExternalServer.Shutdown(context.Background())
 	e.InternalServer.Shutdown(context.Background())
+	e.Done <- true
 	return nil
 }
 
 func Start(e *Edge) (*Edge, error) {
+	e.Done = make(chan bool,0)
 	// e.Port is an mTLS port that can talk to network
 	// - runs our public handler
 	if e.Port == 0 {
@@ -372,6 +375,18 @@ func Start(e *Edge) (*Edge, error) {
 	}
 	e.Logger("edge.Start: http://127.0.0.1:%d", e.PortInternal)
 	go e.InternalServer.ListenAndServe()
+
+  e.LastAvailable = e.Available()
+  go func() {
+		for {
+			select {
+				case _ <- e.Done
+				  return
+			  case <-time.After(5 * time.Second)
+				  e.LastAvailable = e.Available()
+			}
+		}
+	}()
 
 	return e, nil
 }
