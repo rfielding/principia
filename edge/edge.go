@@ -290,15 +290,16 @@ func Start(e *Edge) *Edge {
 		return nil
 	}
 	// Disable hostname checks.... omg
-	e.TLS = &tls.Config{
+	e.TLS =d &tls.Config{
 		RootCAs:            rootCAs,
 		InsecureSkipVerify: true, // This is not the same as skip verify, because of VerifyPeerCertificate!
 		VerifyPeerCertificate: common.VerifyPeerCertificate,
 	}
-
+d
 	e.ExternalServer = http.Server{
 		Addr: fmt.Sprintf("%s:%d", e.Bind, e.Port),
 		Handler: http.NewServeMux(),
+		TLSConfig: e.TLS,
 	}
 	e.InternalServer = http.Server{
 		Addr: fmt.Sprintf("127.0.0.1:%d", e.PortInternal),
