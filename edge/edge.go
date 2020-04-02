@@ -233,6 +233,7 @@ func (e *Edge) Requires(listener string, port Port) {
 	})
 }
 
+// TODO: un-allocated port is what is actually necessary
 func AllocPort() Port {
 	p := nextPort
 	nextPort++
