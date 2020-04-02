@@ -32,7 +32,9 @@ func TestEdge(t *testing.T) {
 
 	TryTest(t, eAuth.Spawn(edge.Listener{
 		PortIntoEnv: "EAUTH_PORT",
-		Cmd:         []string{"/usr/bin/authsvr"},
+		Run: edge.Command{
+			Cmd: []string{"/usr/bin/authsvr"},
+		},
 	}))
 
 	eAuth2, err := edge.Start(&edge.Edge{
@@ -46,7 +48,9 @@ func TestEdge(t *testing.T) {
 
 	TryTest(t, eAuth2.Spawn(edge.Listener{
 		PortIntoEnv: "EAUTH_PORT",
-		Cmd:         []string{"/usr/bin/authsvr"},
+		Run: edge.Command{
+			Cmd: []string{"/usr/bin/authsvr"},
+		},
 	}))
 
 	// This is a sidecar for a database on random port
@@ -61,7 +65,10 @@ func TestEdge(t *testing.T) {
 
 	TryTest(t, eDB.Spawn(edge.Listener{
 		PortIntoCmdArg: 2, // write into an arg
-		Cmd:            []string{"/usr/bin/edb", "-p", "????", "-s", "eWeb"},
+		Run: edge.Command{
+			Pwd: "/etc/edb",
+			Cmd: []string{"/usr/bin/edb", "-p", "????", "-s", "eWeb"},
+		},
 	}))
 
 	// This is a proxy on 8122 to a web server on 8123, talking to db on
@@ -81,11 +88,13 @@ func TestEdge(t *testing.T) {
 	// Spawn the web server talking to the db
 	TryTest(t, eWeb.Spawn(edge.Listener{
 		Expose:      true,
-		Cmd:         []string{"/usr/bin/eWeb"},
 		PortIntoEnv: "EWEB_PORT",
-		Env: []string{
-			"EDB_PORT", eDB_eWeb_port.String(),
-			"EAUTH_PORT", eAuth_port.String(),
+		Run: edge.Command{
+			Cmd: []string{"/usr/bin/eWeb"},
+			Env: []string{
+				"EDB_PORT", eDB_eWeb_port.String(),
+				"EAUTH_PORT", eAuth_port.String(),
+			},
 		},
 	}))
 	eWeb.Peer(eDB.Host, eDB.Port)

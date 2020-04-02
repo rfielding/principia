@@ -40,6 +40,12 @@ type Peer struct {
 	ExpiresAt time.Time
 }
 
+type Command struct {
+	Cmd []string
+	Env []string
+	Pwd string
+}
+
 // Listener is a spawned process that exposes a port
 // to be reachable within the network
 // Listeners are removed when their Cmd dies
@@ -50,8 +56,7 @@ type Listener struct {
 	// This is how we look up services, by name/instance
 	Name   string
 	Expose bool
-	Cmd    []string
-	Env    []string
+	Run    Command
 	// We can use this to have a port inserted upon spawn
 	PortIntoCmdArg int
 	PortIntoEnv    string
@@ -240,7 +245,7 @@ func (e *Edge) Spawn(lsn Listener) error {
 	if lsn.Port == 0 {
 		lsn.Port = AllocPort()
 		if lsn.PortIntoCmdArg > 0 {
-			lsn.Cmd[lsn.PortIntoCmdArg] = lsn.Port.String()
+			lsn.Run.Cmd[lsn.PortIntoCmdArg] = lsn.Port.String()
 		}
 	}
 	if lsn.Bind == "" {
