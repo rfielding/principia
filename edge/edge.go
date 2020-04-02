@@ -219,7 +219,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// Search volunteers
-	available := e.Available()
+	available := e.LastAvailable
 	for name := range available {
 		if strings.HasPrefix(r.RequestURI, "/"+name+"/") {
 			for _, item := range available[name].Volunteers {
