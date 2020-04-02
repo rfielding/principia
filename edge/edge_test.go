@@ -15,8 +15,15 @@ func TryTest(t *testing.T, err error) {
 }
 
 func TestEdge(t *testing.T) {
+	certPath := "../cert.pem"
+	keyPath := "../key.pem"
+	trustPath := "../cert.pem"
+
 	eAuth := edge.Start(&edge.Edge{
-		Name: "eAuth",
+		Name:      "eAuth",
+		CertPath:  certPath,
+		KeyPath:   keyPath,
+		TrustPath: trustPath,
 	})
 	TryTest(t, eAuth.Spawn(edge.Listener{
 		PortIntoEnv: "EAUTH_PORT",
@@ -25,7 +32,10 @@ func TestEdge(t *testing.T) {
 
 	// This is a sidecar for a database on random port
 	eDB := edge.Start(&edge.Edge{
-		Name: "eDB_eWeb",
+		Name:      "eDB_eWeb",
+		CertPath:  certPath,
+		KeyPath:   keyPath,
+		TrustPath: trustPath,
 	})
 	TryTest(t, eDB.Spawn(edge.Listener{
 		PortIntoCmdArg: 2, // write into an arg
@@ -34,7 +44,10 @@ func TestEdge(t *testing.T) {
 
 	// This is a proxy on 8122 to a web server on 8123, talking to db on
 	eWeb := edge.Start(&edge.Edge{
-		Name: "eWeb",
+		Name:      "eWeb",
+		CertPath:  certPath,
+		KeyPath:   keyPath,
+		TrustPath: trustPath,
 	})
 	// Allocate an arbitrary port for the db
 	eDB_eWeb_port := edge.AllocPort()

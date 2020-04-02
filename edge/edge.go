@@ -1,6 +1,8 @@
 package edge
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"github.com/rfielding/principia/common"
@@ -51,11 +53,16 @@ type Edge struct {
 	Host         string
 	Bind         string
 	Port         int
+	PortInternal int
 	Logger       common.Logger
 	Listeners    []Listener
 	DefaultLease time.Duration
 	Peers        []Peer
 	Required     []Required
+	CertPath     string
+	KeyPath      string
+	TrustPath    string
+	TLS          *tls.Config
 }
 
 type Item struct {
@@ -66,13 +73,16 @@ type Item struct {
 
 // TODO: upgrade all to https
 func (e *Edge) AvailableFromPeer(peer Peer) map[string]*Item {
-	url := fmt.Sprintf("http://%s:%d/available", peer.Host, peer.Port)
+	url := fmt.Sprintf("https://%s:%d/available", peer.Host, peer.Port)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		e.Logger("error creating search %s for peer: %v", url, err)
 		return nil
 	}
-	cl := http.Client{}
+
+	tr := &http.Transport{TLSClientConfig: e.TLS}
+	cl := &http.Client{Transport: tr}
+
 	res, err := cl.Do(req)
 	if err != nil {
 		e.Logger("error searching peer: %v", err)
@@ -222,9 +232,15 @@ func AllocPort() int {
 }
 
 func Start(e *Edge) *Edge {
-	// Allocate a port if not specified
+	// e.Port is an mTLS port that can talk to network
+	// - runs our public handler
 	if e.Port == 0 {
 		e.Port = AllocPort()
+	}
+	// e.PortInternal is a plaintext port localhost only
+	//- runs our public handler with private handling as well
+	if e.PortInternal == 0 {
+		e.PortInternal = AllocPort()
 	}
 	if e.Host == "" {
 		e.Host = "127.0.0.1"
@@ -240,6 +256,46 @@ func Start(e *Edge) *Edge {
 	e.Peers = make([]Peer, 0)
 	e.Required = make([]Required, 0)
 	e.Logger("edge.Start: https://%s:%d", e.Host, e.Port)
-	go http.ListenAndServe(fmt.Sprintf("%s:%d", e.Bind, e.Port), e)
+
+	// Get the SystemCertPool, continue with an empty pool on error
+	rootCAs, _ := x509.SystemCertPool()
+	if rootCAs == nil {
+		rootCAs = x509.NewCertPool()
+	}
+	// Read in the cert file
+	certs, err := ioutil.ReadFile(e.TrustPath)
+	if err != nil {
+		e.Logger("Failed to append %q to RootCAs: %v", e.TrustPath, err)
+		return nil
+	}
+	if ok := rootCAs.AppendCertsFromPEM(certs); !ok {
+		e.Logger("No certs appended, using system certs only")
+		return nil
+	}
+	// Disable hostname checks.... omg
+	e.TLS = &tls.Config{
+		RootCAs:            rootCAs,
+		InsecureSkipVerify: true, // This is not the same as skip verify, because of VerifyPeerCertificate!
+		VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+			roots := x509.NewCertPool()
+			for _, rawCert := range rawCerts {
+				c, _ := x509.ParseCertificate(rawCert)
+
+				roots.AddCert(c)
+			}
+			cert, _ := x509.ParseCertificate(rawCerts[0])
+			opts := x509.VerifyOptions{
+				DNSName: cert.Subject.CommonName,
+				Roots:   roots,
+			}
+			if _, err := cert.Verify(opts); err != nil {
+				return fmt.Errorf("failed to verify certificate: " + err.Error())
+			}
+			return nil
+		},
+	}
+	// Spawn our public and private listeners
+	go http.ListenAndServeTLS(fmt.Sprintf("%s:%d", e.Bind, e.Port), e.CertPath, e.KeyPath, e)
+	go http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", e.PortInternal), e)
 	return e
 }
