@@ -276,23 +276,7 @@ func Start(e *Edge) *Edge {
 	e.TLS = &tls.Config{
 		RootCAs:            rootCAs,
 		InsecureSkipVerify: true, // This is not the same as skip verify, because of VerifyPeerCertificate!
-		VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
-			roots := x509.NewCertPool()
-			for _, rawCert := range rawCerts {
-				c, _ := x509.ParseCertificate(rawCert)
-
-				roots.AddCert(c)
-			}
-			cert, _ := x509.ParseCertificate(rawCerts[0])
-			opts := x509.VerifyOptions{
-				DNSName: cert.Subject.CommonName,
-				Roots:   roots,
-			}
-			if _, err := cert.Verify(opts); err != nil {
-				return fmt.Errorf("failed to verify certificate: " + err.Error())
-			}
-			return nil
-		},
+		VerifyPeerCertificate: common.VerifyPeerCertificate,
 	}
 	// Spawn our public and private listeners
 	go http.ListenAndServeTLS(fmt.Sprintf("%s:%d", e.Bind, e.Port), e.CertPath, e.KeyPath, e)
