@@ -27,7 +27,11 @@ Every node can also be used as a reverse proxy to reach services that exist in t
 
 # Service Example
 
-We always launch some sidecars, that are analagous to sshd daemons.
+We always launch some sidecars, that are analagous to sshd daemons.  We are running a simple example in package edge.
+
+```bash
+(cd edge && go test)
+```
 
 ## The Authorization service Example
 
