@@ -240,7 +240,7 @@ Local Ports
 The point of talking to local ports is to:
 
 - keep services from having to track changes to participating dependents (remote endpoints)
-- keep services from needing a TLS config to speak to the other end, as all TLS is done transparently betwwen edges; similar to sshd port 0.0.0.0:22.
+- keep services from needing a TLS config to speak to the other end, as all TLS is done transparently between edges; similar to sshd port 0.0.0.0:22.
 - hide load balancing.  these ports are always up, and will send to an arbitrary service that meets the requirements.
 - Since everything tunnels over WebSockets, http authentication and authorization mechanisms can be used (JWT), even over protocols (such as mongo) that have no idea that http exists.
 - Use Spiffe certificates internally, but users never see it at all.
@@ -265,3 +265,13 @@ The API (analagous to Control Plane)
 - Allow for the registration of OFFERED endpoints, similar to Envoy cluster.
 - Can register REQUIRED ports, similar to Envoy listener.
 - REQUIRED ports will load balance to all OFFERED ports, which may be remote or local; and randomly chosen from what is available.
+
+Containers
+==========
+
+The plan for containers is to just allow for full use of raw docker commands.
+Features needed to create correct command-lines will need to be implemented.
+A mix of local binary commands, docker commands, and some Edge internal handlers (like static Web Servers) should be very easy to mix together.
+The point of this is to have a simple framework for integration testing a log of stuff together.
+It should be easy to split across machines.  Currently in docker, this is often challenging to do without complicated wrappers around docker;
+and usually it is not easy to fold in non-containerized commands
