@@ -43,7 +43,7 @@ machine.
 
 ```go
   // Create an Edge that will spawn on a random port
-	eAuth, err := edge.Start(&edge.Edge{
+  eAuth, err := edge.Start(&edge.Edge{
 		Name:      "eAuth",
 		CertPath:  certPath,
 		KeyPath:   keyPath,

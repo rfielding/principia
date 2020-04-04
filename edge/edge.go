@@ -231,16 +231,11 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	available := e.LastAvailable
 	for name := range available {
 		if strings.HasPrefix(r.RequestURI, "/"+name+"/") {
-			volunteerNames := make([]string,0)
-			for _, item := range available[name].Volunteers {
-				volunteerNames = append(volunteerNames, item)
-				//e.Logger("GET %s -> %s %s", r.RequestURI, item, r.RequestURI)
-				//return
-			}
+			volunteers := available[name].Volunteers
 			// Pick a random volunteer
-			if len(volunteerNames) > 0 {
-				ritem := int(rand.Int31n(int32(len(volunteerNames))))
-				item := volunteerNames[ritem]
+			if len(volunteers) > 0 {
+				ritem := int(rand.Int31n(int32(len(volunteers))))
+				item := volunteers[ritem]
 				to := fmt.Sprintf("https://%s%s", item, r.RequestURI)
 				e.Logger("%s %s -> %s", r.Method, to, item)
 				req, err := http.NewRequest(r.Method, to, r.Body)
