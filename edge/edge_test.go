@@ -92,7 +92,7 @@ func TestEdge(t *testing.T) {
 		Name:        "eAuth",
 		PortIntoEnv: "EAUTH_PORT",
 		Run: edge.Command{
-			Cmd: []string{"ls"},
+			Cmd: []string{"tree"},
 		},
 	}))
 
@@ -100,7 +100,7 @@ func TestEdge(t *testing.T) {
 		Name:        "eAuth",
 		PortIntoEnv: "EAUTH_PORT",
 		Run: edge.Command{
-			Cmd: []string{"ls"},
+			Cmd: []string{"ls", "-al"},
 		},
 	}))
 
@@ -140,5 +140,6 @@ func TestEdge(t *testing.T) {
 	TryTest(t, err)
 	fmt.Printf("Got: %s\n", eWeb_data2)
 
+	fmt.Printf("https://localhost:9022/eWeb/")
 	time.Sleep(5 * time.Minute)
 }

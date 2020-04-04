@@ -30,6 +30,7 @@ Every node can also be used as a reverse proxy to reach services that exist in t
 We always launch some sidecars, that are analagous to sshd daemons.  We are running a simple example in package edge.
 
 > !!! Docker command line should not have to run as root.
+> !! We assume that tree (cli command) is installed
 
 ```bash
 (cd edge && go test)
