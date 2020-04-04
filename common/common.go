@@ -4,6 +4,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 func AsJsonPretty(obj interface{}) []byte {
@@ -15,11 +16,12 @@ type Logger func(mask string, argv ...interface{}) (int, error)
 
 func NewLogger(id string) Logger {
 	return func(mask string, argv ...interface{}) (int, error) {
-		mask = "%s: " + mask + "\n"
-		argv2 := make([]interface{}, 0)
-		argv2 = append(argv2, id)
-		argv2 = append(argv2, argv...)
-		return fmt.Printf(mask, argv2...)
+		msg := fmt.Sprintf(mask, argv...)
+		lines := strings.Split(msg, "\n")
+		for i := range lines {
+			fmt.Printf("%s: %s\n", id, lines[i])
+		}
+		return 0, nil
 	}
 }
 
