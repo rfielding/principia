@@ -500,14 +500,44 @@ func (e *Edge) Peer(host string, port Port) {
 	e.LastAvailable = e.Available()
 }
 
-func (e *Edge) Requires(listener string, port Port) error {
-	e.Logger.Info("e.Requires: %s %d", listener, port)
+func (e *Edge) dependencyTransport(src_conn net.Conn, listener string) {
+	sidecar := e.SidecarName()
+	dest_conn, err := net.DialTimeout(
+		"tcp",
+		sidecar,
+		10*time.Second,
+	)
+	if err != nil {
+		e.Logger.Error("unable to dial sidecar %s: %v", sidecar, err)
+		return
+	}
+	e.Logger.Info("prologue websocket to sidecar %s", sidecar)
+	err = e.wsPrologue(sidecar, "/"+listener+"/", dest_conn)
+	if err != nil {
+		src_conn.Close()
+		dest_conn.Close()
+		e.Logger.Error("unable to run prologue: %v", err)
+		return
+	}
+	e.Logger.Info("consuming websocket to sidecar %s", sidecar)
+	go func() {
+		defer dest_conn.Close()
+		io.Copy(src_conn, dest_conn)
+	}()
+	go func() {
+		defer src_conn.Close()
+		io.Copy(src_conn, dest_conn)
+	}()
+}
+
+func (e *Edge) Requires(service string, port Port) error {
+	e.Logger.Info("e.Requires: %s %d", service, port)
 	spawned, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
 	if err != nil {
 		return err
 	}
 	rq := Required{
-		Name: listener,
+		Name: service,
 		Port: port,
 		Lsn:  spawned,
 	}
@@ -519,32 +549,7 @@ func (e *Edge) Requires(listener string, port Port) error {
 				e.Logger.Error("unable to spawn: %v", err)
 				continue
 			}
-			sidecar := e.SidecarName()
-			dest_conn, err := net.DialTimeout(
-				"tcp",
-				sidecar,
-				10*time.Second,
-			)
-			if err != nil {
-				e.Logger.Error("unable to dial sidecar: %v", err)
-			}
-			e.Logger.Info("prologue websocket to %s", sidecar)
-			err = e.wsPrologue(sidecar, "/"+listener+"/", dest_conn)
-			if err != nil {
-				src_conn.Close()
-				dest_conn.Close()
-				e.Logger.Error("unable to run prologue: %v", err)
-				continue
-			}
-			e.Logger.Info("consuming websocket to %s", sidecar)
-			go func() {
-				defer dest_conn.Close()
-				io.Copy(src_conn, dest_conn)
-			}()
-			go func() {
-				defer src_conn.Close()
-				io.Copy(src_conn, dest_conn)
-			}()
+			e.dependencyTransport(src_conn, service)
 		}
 	}()
 	return nil

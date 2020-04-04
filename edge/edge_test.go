@@ -153,7 +153,7 @@ func TestEdge(t *testing.T) {
 	// Talk to actual service for comparison
 	if true {
 		eDB_svc_name := eDB.Available()["eDB_eWeb"].Endpoint
-		testLogger.Info("tcp to svc %s", eDB_svc_name)
+		testLogger.Info("tcp to raw svc %s", eDB_svc_name)
 		conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s", eDB_svc_name), time.Duration(10*time.Second))
 		TryTest(t, err)
 		conn.Write([]byte(fmt.Sprintf("GET / HTTP/1.1\r\nHost: %s\r\n\r\n", eDB_svc_name)))
@@ -161,18 +161,52 @@ func TestEdge(t *testing.T) {
 			io.Copy(os.Stdout, conn)
 			conn.Close()
 		}()
+		time.Sleep(2 * time.Second)
 	}
 
-	if false {
-		eDB_sc_port := fmt.Sprintf("127.0.0.1:%d", eDB_eWeb_port)
-		testLogger.Info("tcp to sidecar port %s", eDB_sc_port)
-		conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s", eDB_sc_port), time.Duration(10*time.Second))
+	// Talk to eDB sidecar websocket
+	if true {
+		eDB_svc_name := eDB.Available()["sidecarInternal"].Endpoint
+		testLogger.Info("tcp to local sidecar websocket %s", eDB_svc_name)
+		conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s", eDB_svc_name), time.Duration(10*time.Second))
 		TryTest(t, err)
-		conn.Write([]byte(fmt.Sprintf("GET / HTTP/1.1\r\nHost: %s\r\n\r\n", eDB_sc_port)))
-		io.Copy(os.Stdout, conn)
-		conn.Close()
+		conn.Write([]byte(fmt.Sprintf("GET /eDB_eWeb/ HTTP/1.1\r\nHost: %s\r\nUpgrade: connection\r\nConnection: websocket\r\n\r\n", eDB_svc_name)))
+		go func() {
+			io.Copy(os.Stdout, conn)
+			conn.Close()
+		}()
+		time.Sleep(2 * time.Second)
 	}
+
+	// Talk to eWeb sidecar websocket
+	if true {
+		eDB_svc_name := eWeb.Available()["sidecarInternal"].Endpoint
+		testLogger.Info("tcp to remote sidecar websocket %s", eDB_svc_name)
+		conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s", eDB_svc_name), time.Duration(10*time.Second))
+		TryTest(t, err)
+		conn.Write([]byte(fmt.Sprintf("GET /eDB_eWeb/ HTTP/1.1\r\nHost: %s\r\nUpgrade: connection\r\nConnection: websocket\r\n\r\n", eDB_svc_name)))
+		go func() {
+			io.Copy(os.Stdout, conn)
+			conn.Close()
+		}()
+		time.Sleep(2 * time.Second)
+	}
+
+	// Talk to actual service for comparison
+	if true {
+		eDB_svc_name := eWeb.Available()["eDB_eWeb"].Endpoint
+		testLogger.Info("tcp to remote sidecar port %s", eDB_svc_name)
+		conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s", eDB_svc_name), time.Duration(10*time.Second))
+		TryTest(t, err)
+		conn.Write([]byte(fmt.Sprintf("GET / HTTP/1.1\r\nHost: %s\r\n\r\n", eDB_svc_name)))
+		go func() {
+			io.Copy(os.Stdout, conn)
+			conn.Close()
+		}()
+		time.Sleep(2 * time.Second)
+	}
+
 	testLogger.Info("https://%s/eWeb/", eWeb.PeerName())
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(5 * time.Minute)
 }
