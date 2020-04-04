@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/rfielding/principia/common"
 	"github.com/rfielding/principia/edge"
-	"io"
+	//"io"
 	"io/ioutil"
 	"net"
 	"os"
@@ -129,8 +129,8 @@ func TestEdge(t *testing.T) {
 	eWeb.Peer(eDB.Host, eDB.Port)
 	eWeb.Peer(eAuth1.Host, eAuth1.Port)
 	eWeb.Peer(eAuth2.Host, eAuth2.Port)
-	eWeb.Requires("eDB_eWeb", eDB_eWeb_port)
-	eWeb.Requires("eAuth", eAuth_port)
+	eWeb.Dependency("eDB_eWeb", eDB_eWeb_port)
+	eWeb.Dependency("eAuth", eAuth_port)
 
 	// Log info about it
 	testLogger.Info("Available eAuth1:%d %s", eAuth1.Port, common.AsJsonPretty(eAuth1.Available()))
@@ -150,6 +150,21 @@ func TestEdge(t *testing.T) {
 	TryTest(t, err)
 	testLogger.Info("Got: %s", eWeb_data2)
 
+	readTillZero := func(t *testing.T, conn net.Conn) {
+		buf := make([]byte, 1024)
+		for {
+			count, err := conn.Read(buf)
+			if err != nil {
+				TryTest(t, err)
+			}
+			if count == 0 {
+				break
+			}
+			os.Stdout.Write(buf[0:count])
+		}
+		conn.Close()
+	}
+
 	// Talk to actual service for comparison
 	if true {
 		eDB_svc_name := eDB.Available()["eDB_eWeb"].Endpoint
@@ -158,8 +173,7 @@ func TestEdge(t *testing.T) {
 		TryTest(t, err)
 		conn.Write([]byte(fmt.Sprintf("GET / HTTP/1.1\r\nHost: %s\r\n\r\n", eDB_svc_name)))
 		go func() {
-			io.Copy(os.Stdout, conn)
-			conn.Close()
+			readTillZero(t, conn)
 		}()
 		time.Sleep(2 * time.Second)
 	}
@@ -172,8 +186,7 @@ func TestEdge(t *testing.T) {
 		TryTest(t, err)
 		conn.Write([]byte(fmt.Sprintf("GET /eDB_eWeb/ HTTP/1.1\r\nHost: %s\r\nUpgrade: connection\r\nConnection: websocket\r\n\r\n", eDB_svc_name)))
 		go func() {
-			io.Copy(os.Stdout, conn)
-			conn.Close()
+			readTillZero(t, conn)
 		}()
 		time.Sleep(2 * time.Second)
 	}
@@ -186,8 +199,7 @@ func TestEdge(t *testing.T) {
 		TryTest(t, err)
 		conn.Write([]byte(fmt.Sprintf("GET /eDB_eWeb/ HTTP/1.1\r\nHost: %s\r\nUpgrade: connection\r\nConnection: websocket\r\n\r\n", eDB_svc_name)))
 		go func() {
-			io.Copy(os.Stdout, conn)
-			conn.Close()
+			readTillZero(t, conn)
 		}()
 		time.Sleep(2 * time.Second)
 	}
@@ -200,8 +212,7 @@ func TestEdge(t *testing.T) {
 		TryTest(t, err)
 		conn.Write([]byte(fmt.Sprintf("GET / HTTP/1.1\r\nHost: %s\r\n\r\n", eDB_svc_name)))
 		go func() {
-			io.Copy(os.Stdout, conn)
-			conn.Close()
+			readTillZero(t, conn)
 		}()
 		time.Sleep(2 * time.Second)
 	}

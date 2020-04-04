@@ -530,8 +530,8 @@ func (e *Edge) dependencyTransport(src_conn net.Conn, listener string) {
 	}()
 }
 
-func (e *Edge) Requires(service string, port Port) error {
-	e.Logger.Info("e.Requires: %s %d", service, port)
+func (e *Edge) Dependency(service string, port Port) error {
+	e.Logger.Info("e.Dependency: %s %d", service, port)
 	spawned, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
 	if err != nil {
 		return err
