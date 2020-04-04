@@ -1,7 +1,6 @@
 package edge
 
 import (
-	"bufio"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -15,7 +14,6 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/rfielding/principia/common"
@@ -236,70 +234,6 @@ func (e *Edge) LogRet(err error, msg string, args ...interface{}) error {
 	return err
 }
 
-func (e *Edge) wsConsumeHeaders(host string, url string, dest_conn net.Conn) error {
-	// Perform the websocket handshake, by writing the GET request on our tunnel
-	dest_conn.Write([]byte(fmt.Sprintf("GET %s HTTP/1.1\r\n", url)))
-	dest_conn.Write([]byte(fmt.Sprintf("Host: %s\r\n", host)))
-	dest_conn.Write([]byte("Connection: Upgrade\r\n"))
-	dest_conn.Write([]byte("Upgrade: websocket\r\n"))
-	dest_conn.Write([]byte("\r\n"))
-
-	// Consume the header that comes back, and ensure that it's a 101
-	brdr := bufio.NewReader(dest_conn)
-	line, _, err := brdr.ReadLine()
-	if err != nil {
-		return e.LogRet(err, "failed to read line to %s: %v", url, err)
-	}
-	lineTokens := strings.Split(string(line), " ")
-	if len(lineTokens) < 3 {
-		return e.LogRet(nil, "malformed http response: %s", line)
-	}
-	if lineTokens[1] != "101" {
-		return e.LogRet(nil, "wrong http error code: %s %s", lineTokens[0], lineTokens[1])
-	}
-	// Read lines until an empty one or error to consume the headers
-	for {
-		hdrLine, _, err := brdr.ReadLine()
-		if err != nil {
-			return e.LogRet(nil, "error reading headers: %v", err)
-		}
-		if len(hdrLine) == 0 {
-			break
-		}
-	}
-	return nil
-}
-
-func (e *Edge) wsHijack(w http.ResponseWriter) (net.Conn, error) {
-	// Steal the writer body as a 2way socket
-	hijacker, ok := w.(http.Hijacker)
-	if !ok {
-		return nil, fmt.Errorf("Unable to upgrade to websocket")
-	}
-	w.WriteHeader(101)
-	src_conn, _, err := hijacker.Hijack()
-	if err != nil {
-		return nil, fmt.Errorf("Unable to get client hijack: %v", err)
-	}
-	return src_conn, nil
-}
-
-func (e *Edge) wsTransport(src_conn net.Conn, dest_conn net.Conn) {
-	wg := sync.WaitGroup{}
-	wg.Add(2)
-	go func() {
-		io.Copy(dest_conn, src_conn)
-		wg.Done()
-	}()
-	go func() {
-		io.Copy(src_conn, dest_conn)
-		wg.Done()
-	}()
-	e.Logger.Info("transport underway")
-	wg.Wait()
-	e.Logger.Info("transport done")
-}
-
 // ServeHTTP serves up http for this service
 func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	logger := e.Logger.Push("ServeHTTP")
@@ -317,7 +251,6 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Find local listeners - we modify the url
 	for _, lsn := range e.Listeners {
 		if strings.HasPrefix(r.RequestURI, "/"+lsn.Name+"/") {
-			path := "/" + r.RequestURI[2+len(lsn.Name):]
 			to := fmt.Sprintf("127.0.0.1:%d", lsn.Port)
 			logger.Info("listener: GET %s -> %s %s", r.RequestURI, lsn.Name, to)
 			if wantsWebsockets {
@@ -339,6 +272,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				defer src_conn.Close()
 				e.wsTransport(src_conn, dest_conn)
 			} else {
+				path := "/" + r.RequestURI[2+len(lsn.Name):]
 				url := fmt.Sprintf("http://%s%s", to, path)
 				req, err := http.NewRequest(r.Method, url, r.Body)
 				if err != nil {
@@ -373,9 +307,9 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if len(volunteers) > 0 {
 				rv := int(rand.Int31n(int32(len(volunteers))))
 				volunteer := volunteers[rv]
-				to := fmt.Sprintf("https://%s%s", volunteer, r.RequestURI)
-				logger.Info("volunteer: %s %s -> %s", r.Method, to, volunteer)
-				req, err := http.NewRequest(r.Method, to, r.Body)
+				url := fmt.Sprintf("https://%s%s", volunteer, r.RequestURI)
+				logger.Info("volunteer: %s %s -> %s", r.Method, url, volunteer)
+				req, err := http.NewRequest(r.Method, url, r.Body)
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
 					msg := fmt.Sprintf("Failed To Create Request: %v", err)
@@ -392,32 +326,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				if wantsWebsockets {
-					// Tunnel to the volunteer with a TLS cert
-					dest_conn, err := tls.Dial("tcp", volunteer, e.TLSClientConfig)
-					if err != nil {
-						w.WriteHeader(http.StatusInternalServerError)
-						e.Logger.Error("unable to dial volunteer: %v", err)
-						return
-					}
-					defer dest_conn.Close()
-					// If we connect successfully, do the websocket headers to our volunteer
-					err = e.wsConsumeHeaders(volunteer, to, dest_conn)
-					if err != nil {
-						w.WriteHeader(http.StatusInternalServerError)
-						e.Logger.Error("unable to setup websocket to volunteer %s: %v", volunteer, err)
-						return
-					}
-					e.Logger.Info("prologue websocket to volunteer %s", volunteer)
-					// Hijack our incoming to transport the websocket across these
-					src_conn, err := e.wsHijack(w)
-					if err != nil {
-						w.WriteHeader(http.StatusInternalServerError)
-						e.Logger.Error("unable to hijack connection: %v", err)
-						return
-					}
-					defer src_conn.Close()
-					e.Logger.Info("transport websocket to volunteer: %s", volunteer)
-					e.wsTransport(src_conn, dest_conn)
+					e.wsHttps(w, r, url, volunteer)
 				} else {
 					io.Copy(w, res.Body)
 				}
@@ -531,61 +440,26 @@ func (e *Edge) Peer(host string, port Port) {
 	e.LastAvailable = e.Available()
 }
 
-// This is used from the plain TCP tunnel into the sidecar
-func (e *Edge) dependencyTransport(src_conn net.Conn, service string) {
-	defer src_conn.Close()
-	sidecar := e.SidecarName()
-	dest_conn, err := net.DialTimeout(
-		"tcp",
-		sidecar,
-		10*time.Second,
-	)
-	if err != nil {
-		e.Logger.Error("dependency unable to dial sidecar %s: %v", sidecar, err)
-		return
-	}
-	defer dest_conn.Close()
-	e.Logger.Info("dependency prologue websocket to sidecar %s", sidecar)
-	err = e.wsConsumeHeaders(sidecar, "/"+service+"/", dest_conn)
-	if err != nil {
-		e.Logger.Error("dependency unable to run prologue: %v", err)
-		return
-	}
-	e.Logger.Info("dependency consuming websocket to sidecar %s", sidecar)
-
-	wg := sync.WaitGroup{}
-	wg.Add(2)
-	go func() {
-		io.Copy(src_conn, dest_conn)
-		wg.Done()
-	}()
-	go func() {
-		io.Copy(src_conn, dest_conn)
-		wg.Done()
-	}()
-	wg.Wait()
-}
-
 func (e *Edge) Dependency(service string, port Port) error {
 	e.Logger.Info("e.Dependency: %s %d", service, port)
-	spawned, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	tunnel, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
 	if err != nil {
 		return err
 	}
 	rq := Dependency{
 		Name:   service,
 		Port:   port,
-		Tunnel: spawned,
+		Tunnel: tunnel,
 	}
 	e.Dependencies = append(e.Dependencies, rq)
 	go func() {
 		for {
-			src_conn, err := spawned.Accept()
+			tun_conn, err := tunnel.Accept()
 			if err != nil {
 				e.Logger.Error("unable to spawn: %v", err)
 				continue
 			}
-			e.dependencyTransport(src_conn, service)
+			go e.wsDependencyTransport(tun_conn, service)
 		}
 	}()
 	return nil

@@ -2,14 +2,15 @@ package edge_test
 
 import (
 	"fmt"
-	"github.com/rfielding/principia/common"
-	"github.com/rfielding/principia/edge"
 	"io"
 	"io/ioutil"
 	"net"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/rfielding/principia/common"
+	"github.com/rfielding/principia/edge"
 )
 
 func TryTest(t *testing.T, err error) {
@@ -168,7 +169,8 @@ func TestEdge(t *testing.T) {
 		time.Sleep(2 * time.Second)
 	}
 
-	// Talk to eDB sidecar websocket... expect a websocket header back
+	// Talk to eDB sidecar websocket... We need to tell it that we want a websocket, and specify which tunnel
+	// we are destined for.
 	if true {
 		eDB_svc_name := eDB.Available()["sidecarInternal"].Endpoint
 		testLogger.Info("tcp to local sidecar websocket %s", eDB_svc_name)
