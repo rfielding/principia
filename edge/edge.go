@@ -269,7 +269,6 @@ func (e *Edge) wsPrologue(host string, url string, dest_conn net.Conn) error {
 			break
 		}
 	}
-	e.Logger.Info("websocket consumed headers to %s", host)
 	return nil
 }
 
@@ -341,7 +340,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
 				}
-				e.Logger.Info("transporting websocket to %s", to)
+				e.Logger.Info("transporting websocket to service %s", to)
 				e.wsTransport(w, r, res, dest_conn)
 			} else {
 				io.Copy(w, res.Body)
@@ -381,7 +380,9 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				if wantsWebsockets {
 					// must be TLS, and append websockets header exchange
 					dest_conn, err := tls.Dial("tcp", volunteer, e.TLSClientConfig)
+					e.Logger.Info("prologue websocket to volunteer %s", volunteer)
 					e.wsPrologue(volunteer, r.RequestURI, dest_conn)
+					e.Logger.Info("transport websocket to volunteer: %s", volunteer)
 					e.wsTransport(w, r, res, dest_conn)
 					if err != nil {
 						w.WriteHeader(http.StatusInternalServerError)
@@ -527,6 +528,7 @@ func (e *Edge) Requires(listener string, port Port) error {
 			if err != nil {
 				e.Logger.Error("unable to dial sidecar: %v", err)
 			}
+			e.Logger.Info("prologue websocket to %s", sidecar)
 			err = e.wsPrologue(sidecar, "/"+listener+"/", dest_conn)
 			if err != nil {
 				src_conn.Close()
