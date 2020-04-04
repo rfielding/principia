@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/rfielding/principia/common"
 	"github.com/rfielding/principia/edge"
-	//"io"
+	"io"
 	"io/ioutil"
 	"net"
 	"os"
@@ -151,17 +151,7 @@ func TestEdge(t *testing.T) {
 	testLogger.Info("Got: %s", eWeb_data2)
 
 	readTillZero := func(t *testing.T, conn net.Conn) {
-		buf := make([]byte, 1024)
-		for {
-			count, err := conn.Read(buf)
-			if err != nil {
-				TryTest(t, err)
-			}
-			if count == 0 {
-				break
-			}
-			os.Stdout.Write(buf[0:count])
-		}
+		io.Copy(os.Stdout, conn)
 		conn.Close()
 	}
 

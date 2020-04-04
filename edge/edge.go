@@ -307,15 +307,17 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	logger.Info("%s %s", r.Method, r.RequestURI)
 	wantsWebsockets := r.Header.Get("Connection") == "Upgrade" &&
 		r.Header.Get("Upgrade") == "websocket"
+	logger.Info("%s %s wantsWebsockets=%t", r.Method, r.RequestURI, wantsWebsockets)
+
 	// Find local listeners - we modify the url
 	for _, lsn := range e.Listeners {
 		if strings.HasPrefix(r.RequestURI, "/"+lsn.Name+"/") {
 			path := "/" + r.RequestURI[2+len(lsn.Name):]
-			url := fmt.Sprintf("http://127.0.0.1:%s%s", lsn.Port, path)
-			logger.Info("listener: GET %s -> %s %s", r.RequestURI, lsn.Name, url)
+			to := fmt.Sprintf("127.0.0.1:%d", lsn.Port)
+			url := fmt.Sprintf("http://%s%s", to, path)
+			logger.Info("listener: GET %s -> %s %s", r.RequestURI, lsn.Name, to)
 			req, err := http.NewRequest(r.Method, url, r.Body)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
@@ -335,7 +337,6 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			if wantsWebsockets {
 				// Plaintext to the locally bound port
-				to := fmt.Sprintf("127.0.0.1:%d", lsn.Port)
 				dest_conn, err := net.DialTimeout("tcp", to, 10*time.Second)
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
@@ -508,18 +509,18 @@ func (e *Edge) dependencyTransport(src_conn net.Conn, service string) {
 		10*time.Second,
 	)
 	if err != nil {
-		e.Logger.Error("unable to dial sidecar %s: %v", sidecar, err)
+		e.Logger.Error("dependency unable to dial sidecar %s: %v", sidecar, err)
 		return
 	}
-	e.Logger.Info("prologue websocket to sidecar %s", sidecar)
+	e.Logger.Info("dependency prologue websocket to sidecar %s", sidecar)
 	err = e.wsPrologue(sidecar, "/"+service+"/", dest_conn)
 	if err != nil {
 		src_conn.Close()
 		dest_conn.Close()
-		e.Logger.Error("unable to run prologue: %v", err)
+		e.Logger.Error("dependency unable to run prologue: %v", err)
 		return
 	}
-	e.Logger.Info("consuming websocket to sidecar %s", sidecar)
+	e.Logger.Info("dependency consuming websocket to sidecar %s", sidecar)
 	go func() {
 		defer dest_conn.Close()
 		io.Copy(src_conn, dest_conn)
