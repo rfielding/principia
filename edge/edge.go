@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -234,16 +235,12 @@ func (e *Edge) LogRet(err error, msg string, args ...interface{}) error {
 	return err
 }
 
-func (e *Edge) wsPrologue(host string, url string, dest_conn net.Conn) error {
+func (e *Edge) wsConsumeHeaders(host string, url string, dest_conn net.Conn) error {
 	// Perform the websocket handshake, by writing the GET request on our tunnel
-	requestLine := fmt.Sprintf("GET %s HTTP/1.1\r\n", url)
-	dest_conn.Write([]byte(requestLine))
-	hostLine := fmt.Sprintf("Host: %s\r\n", host)
-	dest_conn.Write([]byte(hostLine))
-	connectionLine := "Connection: Upgrade\r\n"
-	dest_conn.Write([]byte(connectionLine))
-	upgradeLine := "Upgrade: websocket\r\n"
-	dest_conn.Write([]byte(upgradeLine))
+	dest_conn.Write([]byte(fmt.Sprintf("GET %s HTTP/1.1\r\n", url)))
+	dest_conn.Write([]byte(fmt.Sprintf("Host: %s\r\n", host)))
+	dest_conn.Write([]byte("Connection: Upgrade\r\n"))
+	dest_conn.Write([]byte("Upgrade: websocket\r\n"))
 	dest_conn.Write([]byte("\r\n"))
 
 	// Consume the header that comes back, and ensure that it's a 101
@@ -272,29 +269,34 @@ func (e *Edge) wsPrologue(host string, url string, dest_conn net.Conn) error {
 	return nil
 }
 
-func (e *Edge) wsTransport(w http.ResponseWriter, r *http.Request, res *http.Response, dest_conn net.Conn) {
-	w.WriteHeader(101)
+func (e *Edge) wsHijack(w http.ResponseWriter) (net.Conn, error) {
+	// Steal the writer body as a 2way socket
 	hijacker, ok := w.(http.Hijacker)
 	if !ok {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Unable to upgrade to websocket"))
-		return
+		return nil, fmt.Errorf("Unable to upgrade to websocket")
 	}
-	client_conn, _, err := hijacker.Hijack()
+	w.WriteHeader(101)
+	src_conn, _, err := hijacker.Hijack()
 	if err != nil {
-		dest_conn.Close()
-		e.Logger.Error("unable to get client hijack: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+		return nil, fmt.Errorf("Unable to get client hijack: %v", err)
 	}
+	return src_conn, nil
+}
+
+func (e *Edge) wsTransport(src_conn net.Conn, dest_conn net.Conn) {
+	wg := sync.WaitGroup{}
+	wg.Add(2)
 	go func() {
-		defer client_conn.Close()
-		io.Copy(dest_conn, client_conn)
+		io.Copy(dest_conn, src_conn)
+		wg.Done()
 	}()
 	go func() {
-		defer dest_conn.Close()
-		io.Copy(client_conn, dest_conn)
+		io.Copy(src_conn, dest_conn)
+		wg.Done()
 	}()
+	e.Logger.Info("transport underway")
+	wg.Wait()
+	e.Logger.Info("transport done")
 }
 
 // ServeHTTP serves up http for this service
@@ -316,34 +318,44 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.RequestURI, "/"+lsn.Name+"/") {
 			path := "/" + r.RequestURI[2+len(lsn.Name):]
 			to := fmt.Sprintf("127.0.0.1:%d", lsn.Port)
-			url := fmt.Sprintf("http://%s%s", to, path)
 			logger.Info("listener: GET %s -> %s %s", r.RequestURI, lsn.Name, to)
-			req, err := http.NewRequest(r.Method, url, r.Body)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				msg := fmt.Sprintf("Failed To Create Request: %v", err)
-				logger.Error(msg)
-				w.Write([]byte(msg))
-				return
-			}
-			req.Header = r.Header
-			cl := e.HttpClient
-			res, err := cl.Do(req)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				msg := fmt.Sprintf("Failed To Perform Request: %v", err)
-				w.Write([]byte(msg))
-				return
-			}
 			if wantsWebsockets {
-				// Plaintext to the locally bound port
+				// Plaintext to the locally bound port, no more wsPrologue needed
 				dest_conn, err := net.DialTimeout("tcp", to, 10*time.Second)
 				if err != nil {
+					e.Logger.Error("unable to connect to %s: %v", to, err)
 					w.WriteHeader(http.StatusInternalServerError)
+					return
 				}
+				defer dest_conn.Close()
 				e.Logger.Info("transporting websocket to service %s", to)
-				e.wsTransport(w, r, res, dest_conn)
+				src_conn, err := e.wsHijack(w)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				defer src_conn.Close()
+				// This closes both connections
+				e.wsTransport(src_conn, dest_conn)
 			} else {
+				url := fmt.Sprintf("http://%s%s", to, path)
+				req, err := http.NewRequest(r.Method, url, r.Body)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					msg := fmt.Sprintf("Failed To Create Request: %v", err)
+					logger.Error(msg)
+					w.Write([]byte(msg))
+					return
+				}
+				req.Header = r.Header
+				res, err := e.HttpClient.Do(req)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					msg := fmt.Sprintf("Failed To Perform Request: %v", err)
+					w.Write([]byte(msg))
+					return
+				}
+				defer res.Body.Close()
 				io.Copy(w, res.Body)
 			}
 			return
@@ -381,13 +393,22 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				if wantsWebsockets {
 					// must be TLS, and append websockets header exchange
 					dest_conn, err := tls.Dial("tcp", volunteer, e.TLSClientConfig)
-					e.Logger.Info("prologue websocket to volunteer %s", volunteer)
-					e.wsPrologue(volunteer, r.RequestURI, dest_conn)
-					e.Logger.Info("transport websocket to volunteer: %s", volunteer)
-					e.wsTransport(w, r, res, dest_conn)
 					if err != nil {
 						w.WriteHeader(http.StatusInternalServerError)
+						e.Logger.Error("unable to dial volunteer: %v", err)
+						return
 					}
+					defer dest_conn.Close()
+					e.Logger.Info("prologue websocket to volunteer %s", volunteer)
+					src_conn, err := e.wsHijack(w)
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						e.Logger.Error("unable to hijack connection: %v", err)
+						return
+					}
+					defer src_conn.Close()
+					e.Logger.Info("transport websocket to volunteer: %s", volunteer)
+					e.wsTransport(src_conn, dest_conn)
 				} else {
 					io.Copy(w, res.Body)
 				}
@@ -502,6 +523,7 @@ func (e *Edge) Peer(host string, port Port) {
 }
 
 func (e *Edge) dependencyTransport(src_conn net.Conn, service string) {
+	defer src_conn.Close()
 	sidecar := e.SidecarName()
 	dest_conn, err := net.DialTimeout(
 		"tcp",
@@ -512,23 +534,26 @@ func (e *Edge) dependencyTransport(src_conn net.Conn, service string) {
 		e.Logger.Error("dependency unable to dial sidecar %s: %v", sidecar, err)
 		return
 	}
+	defer dest_conn.Close()
 	e.Logger.Info("dependency prologue websocket to sidecar %s", sidecar)
-	err = e.wsPrologue(sidecar, "/"+service+"/", dest_conn)
+	err = e.wsConsumeHeaders(sidecar, "/"+service+"/", dest_conn)
 	if err != nil {
-		src_conn.Close()
-		dest_conn.Close()
 		e.Logger.Error("dependency unable to run prologue: %v", err)
 		return
 	}
 	e.Logger.Info("dependency consuming websocket to sidecar %s", sidecar)
+
+	wg := sync.WaitGroup{}
+	wg.Add(2)
 	go func() {
-		defer dest_conn.Close()
 		io.Copy(src_conn, dest_conn)
+		wg.Done()
 	}()
 	go func() {
-		defer src_conn.Close()
 		io.Copy(src_conn, dest_conn)
+		wg.Done()
 	}()
+	wg.Wait()
 }
 
 func (e *Edge) Dependency(service string, port Port) error {

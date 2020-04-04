@@ -168,26 +168,26 @@ func TestEdge(t *testing.T) {
 		time.Sleep(2 * time.Second)
 	}
 
-	// Talk to eDB sidecar websocket
+	// Talk to eDB sidecar websocket... expect a websocket header back
 	if true {
 		eDB_svc_name := eDB.Available()["sidecarInternal"].Endpoint
 		testLogger.Info("tcp to local sidecar websocket %s", eDB_svc_name)
 		conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s", eDB_svc_name), time.Duration(10*time.Second))
 		TryTest(t, err)
-		conn.Write([]byte(fmt.Sprintf("GET /eDB_eWeb/ HTTP/1.1\r\nHost: %s\r\nUpgrade: connection\r\nConnection: websocket\r\n\r\n", eDB_svc_name)))
+		conn.Write([]byte(fmt.Sprintf("GET /eDB_eWeb/ HTTP/1.1\r\nHost: %s\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n", eDB_svc_name)))
 		go func() {
 			readTillZero(t, conn)
 		}()
 		time.Sleep(2 * time.Second)
 	}
 
-	// Talk to eWeb sidecar websocket
-	if true {
+	// Talk to eWeb sidecar websocket... expect a websocket header back
+	if false {
 		eDB_svc_name := eWeb.Available()["sidecarInternal"].Endpoint
 		testLogger.Info("tcp to remote sidecar websocket %s", eDB_svc_name)
 		conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s", eDB_svc_name), time.Duration(10*time.Second))
 		TryTest(t, err)
-		conn.Write([]byte(fmt.Sprintf("GET /eDB_eWeb/ HTTP/1.1\r\nHost: %s\r\nUpgrade: connection\r\nConnection: websocket\r\n\r\n", eDB_svc_name)))
+		conn.Write([]byte(fmt.Sprintf("GET /eDB_eWeb/ HTTP/1.1\r\nHost: %s\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n", eDB_svc_name)))
 		go func() {
 			readTillZero(t, conn)
 		}()
@@ -195,7 +195,7 @@ func TestEdge(t *testing.T) {
 	}
 
 	// Talk to actual service for comparison
-	if true {
+	if false {
 		eDB_svc_name := eWeb.Available()["eDB_eWeb"].Endpoint
 		testLogger.Info("tcp to remote sidecar port %s", eDB_svc_name)
 		conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s", eDB_svc_name), time.Duration(10*time.Second))
