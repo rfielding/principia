@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
-	"github.com/rfielding/principia/common"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -18,6 +17,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/rfielding/principia/common"
 )
 
 /*
@@ -320,7 +321,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			to := fmt.Sprintf("127.0.0.1:%d", lsn.Port)
 			logger.Info("listener: GET %s -> %s %s", r.RequestURI, lsn.Name, to)
 			if wantsWebsockets {
-				// Plaintext to the locally bound port, no more wsPrologue needed
+				// Dial the destination in plaintext, with no websocket headers
 				dest_conn, err := net.DialTimeout("tcp", to, 10*time.Second)
 				if err != nil {
 					e.Logger.Error("unable to connect to %s: %v", to, err)
@@ -328,6 +329,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				defer dest_conn.Close()
+				// If that worked, then hijack the connection incoming
 				e.Logger.Info("transporting websocket to service %s", to)
 				src_conn, err := e.wsHijack(w)
 				if err != nil {
@@ -335,7 +337,6 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				defer src_conn.Close()
-				// This closes both connections
 				e.wsTransport(src_conn, dest_conn)
 			} else {
 				url := fmt.Sprintf("http://%s%s", to, path)
@@ -391,7 +392,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				if wantsWebsockets {
-					// must be TLS, and append websockets header exchange
+					// Tunnel to the volunteer with a TLS cert
 					dest_conn, err := tls.Dial("tcp", volunteer, e.TLSClientConfig)
 					if err != nil {
 						w.WriteHeader(http.StatusInternalServerError)
@@ -399,7 +400,15 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						return
 					}
 					defer dest_conn.Close()
+					// If we connect successfully, do the websocket headers to our volunteer
+					err = e.wsConsumeHeaders(volunteer, to, dest_conn)
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						e.Logger.Error("unable to setup websocket to volunteer %s: %v", volunteer, err)
+						return
+					}
 					e.Logger.Info("prologue websocket to volunteer %s", volunteer)
+					// Hijack our incoming to transport the websocket across these
 					src_conn, err := e.wsHijack(w)
 					if err != nil {
 						w.WriteHeader(http.StatusInternalServerError)
@@ -522,6 +531,7 @@ func (e *Edge) Peer(host string, port Port) {
 	e.LastAvailable = e.Available()
 }
 
+// This is used from the plain TCP tunnel into the sidecar
 func (e *Edge) dependencyTransport(src_conn net.Conn, service string) {
 	defer src_conn.Close()
 	sidecar := e.SidecarName()
