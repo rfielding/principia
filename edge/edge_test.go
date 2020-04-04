@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"github.com/rfielding/principia/common"
 	"github.com/rfielding/principia/edge"
-	//"io"
+	"io"
 	"io/ioutil"
-	//"net"
-	//"os"
+	"net"
+	"os"
 	"testing"
 	"time"
 )
@@ -93,7 +93,7 @@ func TestEdge(t *testing.T) {
 			HttpCheck: "/",
 		},
 	}))
-	testLogger.Info("Available eDB:%d %s\n", eDB.Port, common.AsJsonPretty(eDB.Available()))
+	testLogger.Info("Available eDB:%d %s", eDB.Port, common.AsJsonPretty(eDB.Available()))
 
 	TryTest(t, eAuth1.Spawn(edge.Listener{
 		Name:        "eAuth",
@@ -133,28 +133,32 @@ func TestEdge(t *testing.T) {
 	eWeb.Requires("eAuth", eAuth_port)
 
 	// Log info about it
-	testLogger.Info("Available eAuth1:%d %s\n", eAuth1.Port, common.AsJsonPretty(eAuth1.Available()))
-	testLogger.Info("Available eAuth2:%d %s\n", eAuth2.Port, common.AsJsonPretty(eAuth2.Available()))
-	testLogger.Info("Available eWeb:%d %s\n", eWeb.Port, common.AsJsonPretty(eWeb.Available()))
+	testLogger.Info("Available eAuth1:%d %s", eAuth1.Port, common.AsJsonPretty(eAuth1.Available()))
+	testLogger.Info("Available eAuth2:%d %s", eAuth2.Port, common.AsJsonPretty(eAuth2.Available()))
+	testLogger.Info("Available eDB:%d %s", eDB.Port, common.AsJsonPretty(eDB.Available()))
+	testLogger.Info("Available eWeb:%d %s", eWeb.Port, common.AsJsonPretty(eWeb.Available()))
 
 	eDB_eWeb_data, err := eDB.GetFromPeer(eWeb.PeerName(), "/eDB_eWeb/")
 	TryTest(t, err)
-	testLogger.Info("Got: %s\n", eDB_eWeb_data)
+	testLogger.Info("Got: %s", eDB_eWeb_data)
 
 	eWeb_data, err := eWeb.GetFromPeer(eWeb.PeerName(), "/eDB_eWeb/")
 	TryTest(t, err)
-	testLogger.Info("Got: %s\n", eWeb_data)
+	testLogger.Info("Got: %s", eWeb_data)
 
 	eWeb_data2, err := eWeb.GetFromPeer(eWeb.PeerName(), "/eWeb/")
 	TryTest(t, err)
-	testLogger.Info("Got: %s\n", eWeb_data2)
-	/*
-		conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", eWeb.Host, eWeb.Port), time.Duration(10*time.Second))
-		TryTest(t, err)
-		//conn.Write([]byte("GET / HTTP/1.1\n\n"))
-		//io.Copy(os.Stdout, conn)
-		conn.Close()
-	*/
+	testLogger.Info("Got: %s", eWeb_data2)
+
+	// Talk to our local requirement port, to check websockets
+	eDB_eWeb_name := fmt.Sprintf("127.0.0.1:%d", eDB_eWeb_port)
+	testLogger.Info("websocket to sidecar %s", eDB_eWeb_name)
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s", eDB_eWeb_name), time.Duration(10*time.Second))
+	TryTest(t, err)
+	conn.Write([]byte(fmt.Sprintf("GET / HTTP/1.1\nHost: %s\n\n", eDB_eWeb_name)))
+	io.Copy(os.Stdout, conn)
+	conn.Close()
+
 	testLogger.Info("https://%s/eWeb/", eWeb.PeerName())
 
 	time.Sleep(5 * time.Minute)

@@ -119,6 +119,10 @@ func (e *Edge) PeerName() string {
 	return fmt.Sprintf("%s:%d", e.Host, e.Port)
 }
 
+func (e *Edge) SidecarName() string {
+	return fmt.Sprintf("127.0.0.1:%d", e.PortInternal)
+}
+
 func (e *Edge) GetFromPeer(peerName string, cmd string) ([]byte, error) {
 	logger := e.Logger.Push("GetFromPeer")
 	url := fmt.Sprintf("https://%s%s", peerName, cmd)
@@ -248,7 +252,6 @@ func (e *Edge) wsPrologue(host string, url string, dest_conn net.Conn) error {
 	if err != nil {
 		return e.LogRet(err, "failed to read line to %s: %v", url, err)
 	}
-	e.Logger.Info("line: %s", line)
 	lineTokens := strings.Split(string(line), " ")
 	if len(lineTokens) < 3 {
 		return e.LogRet(nil, "malformed http response: %s", line)
@@ -266,37 +269,33 @@ func (e *Edge) wsPrologue(host string, url string, dest_conn net.Conn) error {
 			break
 		}
 	}
+	e.Logger.Info("websocket consumed headers to %s", host)
 	return nil
 }
 
 func (e *Edge) wsTransport(w http.ResponseWriter, r *http.Request, res *http.Response, dest_conn net.Conn) {
-	if r.Header.Get("Connection") == "Upgrade" &&
-		r.Header.Get("Upgrade") == "websocket" {
-		w.WriteHeader(101)
-		hijacker, ok := w.(http.Hijacker)
-		if !ok {
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("Unable to upgrade to websocket"))
-			return
-		}
-		client_conn, _, err := hijacker.Hijack()
-		if err != nil {
-			dest_conn.Close()
-			e.Logger.Error("unable to get client hijack: %v", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		go func() {
-			defer client_conn.Close()
-			io.Copy(dest_conn, client_conn)
-		}()
-		go func() {
-			defer dest_conn.Close()
-			io.Copy(client_conn, dest_conn)
-		}()
-	} else {
-		io.Copy(w, res.Body)
+	w.WriteHeader(101)
+	hijacker, ok := w.(http.Hijacker)
+	if !ok {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Unable to upgrade to websocket"))
+		return
 	}
+	client_conn, _, err := hijacker.Hijack()
+	if err != nil {
+		dest_conn.Close()
+		e.Logger.Error("unable to get client hijack: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	go func() {
+		defer client_conn.Close()
+		io.Copy(dest_conn, client_conn)
+	}()
+	go func() {
+		defer dest_conn.Close()
+		io.Copy(client_conn, dest_conn)
+	}()
 }
 
 // ServeHTTP serves up http for this service
@@ -342,6 +341,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
 				}
+				e.Logger.Info("transporting websocket to %s", to)
 				e.wsTransport(w, r, res, dest_conn)
 			} else {
 				io.Copy(w, res.Body)
@@ -518,22 +518,23 @@ func (e *Edge) Requires(listener string, port Port) error {
 				e.Logger.Error("unable to spawn: %v", err)
 				continue
 			}
-			host := fmt.Sprintf("127.0.0.1:%d", e.PortInternal)
+			sidecar := e.SidecarName()
 			dest_conn, err := net.DialTimeout(
 				"tcp",
-				host,
+				sidecar,
 				10*time.Second,
 			)
 			if err != nil {
 				e.Logger.Error("unable to dial sidecar: %v", err)
 			}
-			err = e.wsPrologue(host, "/"+listener+"/", dest_conn)
+			err = e.wsPrologue(sidecar, "/"+listener+"/", dest_conn)
 			if err != nil {
 				src_conn.Close()
 				dest_conn.Close()
 				e.Logger.Error("unable to run prologue: %v", err)
 				continue
 			}
+			e.Logger.Info("consuming websocket to %s", sidecar)
 			go func() {
 				defer dest_conn.Close()
 				io.Copy(src_conn, dest_conn)
