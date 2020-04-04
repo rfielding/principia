@@ -75,7 +75,7 @@ type Listener struct {
 	PortIntoEnv    string
 }
 
-type Required struct {
+type Dependency struct {
 	Name string
 	Port Port
 	Lsn  net.Listener
@@ -93,7 +93,7 @@ type Edge struct {
 	Listeners       []Listener
 	DefaultLease    time.Duration
 	Peers           []Peer
-	Required        []Required
+	Dependencies    []Dependency
 	CertPath        string
 	KeyPath         string
 	TrustPath       string
@@ -171,7 +171,7 @@ func (e *Edge) Available() map[string]*Service {
 		}
 	}
 	// These exist remotely
-	for _, rq := range e.Required {
+	for _, rq := range e.Dependencies {
 		available[rq.Name] = &Service{
 			Endpoint:   fmt.Sprintf("127.0.0.1:%d", rq.Port),
 			Volunteers: make([]string, 0),
@@ -189,7 +189,7 @@ func (e *Edge) Available() map[string]*Service {
 			if services != nil {
 				e.Peers[p].ExpiresAt = time.Now().Add(e.DefaultLease)
 				for kName, _ := range services {
-					for _, rq := range e.Required {
+					for _, rq := range e.Dependencies {
 						if kName == rq.Name {
 							available[kName].Volunteers =
 								append(
@@ -536,12 +536,12 @@ func (e *Edge) Dependency(service string, port Port) error {
 	if err != nil {
 		return err
 	}
-	rq := Required{
+	rq := Dependency{
 		Name: service,
 		Port: port,
 		Lsn:  spawned,
 	}
-	e.Required = append(e.Required, rq)
+	e.Dependencies = append(e.Dependencies, rq)
 	go func() {
 		for {
 			src_conn, err := spawned.Accept()
@@ -556,7 +556,7 @@ func (e *Edge) Dependency(service string, port Port) error {
 }
 
 func (e *Edge) Close() error {
-	for _, rq := range e.Required {
+	for _, rq := range e.Dependencies {
 		if rq.Lsn != nil {
 			rq.Lsn.Close()
 		}
@@ -606,7 +606,7 @@ func Start(e *Edge) (*Edge, error) {
 
 	e.DefaultLease = time.Duration(30 * time.Second)
 	e.Peers = make([]Peer, 0)
-	e.Required = make([]Required, 0)
+	e.Dependencies = make([]Dependency, 0)
 
 	// Get the SystemCertPool, continue with an empty pool on error
 	rootCAs, _ := x509.SystemCertPool()
