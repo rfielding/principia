@@ -7,13 +7,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/rfielding/principia/common"
+	"io"
 	"io/ioutil"
+	"math/rand"
 	"net"
 	"net/http"
+	"os"
+	"os/exec"
 	"strings"
 	"time"
-	"math/rand"
-	"io"
 )
 
 /*
@@ -43,9 +45,13 @@ type Peer struct {
 }
 
 type Command struct {
-	Cmd []string
-	Env []string
-	Pwd string
+	Cmd     []string
+	Env     []string
+	Pwd     string
+	Stdout  io.Writer
+	Stderr  io.Writer
+	Stdin   io.Reader
+	Running *exec.Cmd
 }
 
 // Listener is a spawned process that exposes a port
@@ -62,12 +68,12 @@ type Listener struct {
 	// We can use this to have a port inserted upon spawn
 	PortIntoCmdArg int
 	PortIntoEnv    string
-	Lsn            net.Listener
 }
 
 type Required struct {
 	Name string
 	Port Port
+	Lsn  net.Listener
 }
 
 // Edge is pointed to by Peer, and contains the reverse proxy to
@@ -210,7 +216,7 @@ func (e *Edge) Available() map[string]*Item {
 
 // ServeHTTP serves up http for this service
 func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	e.Logger("%s %s", r.Method, r.RequestURI)
+	//	e.Logger("%s %s", r.Method, r.RequestURI)
 	// Find static items
 	if r.Method == "GET" {
 		if r.RequestURI == "/available" {
@@ -221,7 +227,26 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Find local listeners
 	for _, lsn := range e.Listeners {
 		if strings.HasPrefix(r.RequestURI, "/"+lsn.Name+"/") {
-			e.Logger("GET %s -> %s %d %s", r.RequestURI, lsn.Name, lsn.Port, "/"+r.RequestURI[2+len(lsn.Name):])
+			path := "/" + r.RequestURI[2+len(lsn.Name):]
+			url := fmt.Sprintf("http://127.0.0.1:%s%s", lsn.Port, path)
+			e.Logger("listener: GET %s -> %s %s", r.RequestURI, lsn.Name, url)
+			req, err := http.NewRequest(r.Method, url, r.Body)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				msg := fmt.Sprintf("Failed To Create Request: %v", err)
+				e.Logger(msg)
+				w.Write([]byte(msg))
+				return
+			}
+			cl := e.HttpClient
+			res, err := cl.Do(req)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				msg := fmt.Sprintf("Failed To Perform Request: %v", err)
+				w.Write([]byte(msg))
+				return
+			}
+			io.Copy(w, res.Body)
 			return
 		}
 	}
@@ -237,18 +262,20 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				ritem := int(rand.Int31n(int32(len(volunteers))))
 				item := volunteers[ritem]
 				to := fmt.Sprintf("https://%s%s", item, r.RequestURI)
-				e.Logger("%s %s -> %s", r.Method, to, item)
+				e.Logger("volinteer: %s %s -> %s", r.Method, to, item)
 				req, err := http.NewRequest(r.Method, to, r.Body)
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
-					w.Write([]byte(fmt.Sprintf("Failed To Create Request: %v", err)))
+					msg := fmt.Sprintf("Failed To Create Request: %v", err)
+					w.Write([]byte(msg))
 					return
 				}
 				cl := e.HttpClient
 				res, err := cl.Do(req)
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
-					w.Write([]byte(fmt.Sprintf("Failed To Perform Request: %v", err)))
+					msg := fmt.Sprintf("Failed To Perform Request: %v", err)
+					w.Write([]byte(msg))
 					return
 				}
 				io.Copy(w, res.Body)
@@ -272,13 +299,26 @@ func (e *Edge) Spawn(lsn Listener) error {
 	if lsn.Bind == "" {
 		lsn.Bind = "127.0.0.1"
 	}
-	spawned, err := net.Listen("tcp", fmt.Sprintf("%s:%d", lsn.Bind, lsn.Port))
-	if err != nil {
-		return err
+	if lsn.Run.Stdout == nil {
+		lsn.Run.Stdout = os.Stdout
+	}
+	if lsn.Run.Stderr == nil {
+		lsn.Run.Stderr = os.Stderr
+	}
+	if lsn.Run.Stdin == nil {
+		lsn.Run.Stdin = os.Stdin
 	}
 	e.Logger("edge.Spawn: %s", common.AsJsonPretty(lsn))
-	lsn.Lsn = spawned
+	// Actually execute the command
+	lsn.Run.Running = exec.Command(lsn.Run.Cmd[0], lsn.Run.Cmd[1:]...)
+	lsn.Run.Running.Stdout = lsn.Run.Stdout
+	lsn.Run.Running.Stderr = lsn.Run.Stderr
+	lsn.Run.Running.Stdin = lsn.Run.Stdin
+	go func() {
+		lsn.Run.Running.Run()
+	}()
 	e.Listeners = append(e.Listeners, lsn)
+
 	// Periodic poller start
 	e.LastAvailable = e.Available()
 	return nil
@@ -295,18 +335,30 @@ func (e *Edge) Peer(host string, port Port) {
 	e.LastAvailable = e.Available()
 }
 
-func (e *Edge) Requires(listener string, port Port) {
+func (e *Edge) Requires(listener string, port Port) error {
 	e.Logger("e.Requires: %s %d", listener, port)
-	e.Required = append(e.Required, Required{
+	spawned, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		return err
+	}
+	rq := Required{
 		Name: listener,
 		Port: port,
-	})
+		Lsn:  spawned,
+	}
+	e.Required = append(e.Required, rq)
+	return nil
 }
 
 func (e *Edge) Close() error {
+	for _, rq := range e.Required {
+		if rq.Lsn != nil {
+			rq.Lsn.Close()
+		}
+	}
 	for _, lsn := range e.Listeners {
-		if lsn.Lsn != nil {
-			lsn.Lsn.Close()
+		if lsn.Run.Running != nil {
+			lsn.Run.Running.Process.Kill()
 		}
 	}
 	e.ExternalServer.Shutdown(context.Background())

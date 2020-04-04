@@ -1,16 +1,15 @@
 package common
 
 import (
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
-	"crypto/x509"
 )
 
 func AsJsonPretty(obj interface{}) []byte {
 	s, _ := json.MarshalIndent(obj, "", "  ")
 	return s
 }
-
 
 type Logger func(mask string, argv ...interface{}) (int, error)
 

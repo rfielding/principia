@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"github.com/rfielding/principia/common"
 	"github.com/rfielding/principia/edge"
+	"io/ioutil"
 	"testing"
+	"time"
 )
 
 func TryTest(t *testing.T, err error) {
@@ -21,6 +23,35 @@ func TestEdge(t *testing.T) {
 	// every peer trusts trustPath certs
 	trustPath := "./test_cert.pem"
 
+	// This is a sidecar for a database on random port
+	eDB, err := edge.Start(&edge.Edge{
+		Name:      "eDB_eWeb",
+		CertPath:  certPath,
+		KeyPath:   keyPath,
+		TrustPath: trustPath,
+	})
+	TryTest(t, err)
+	defer eDB.Close()
+
+	TryTest(t, eDB.Spawn(edge.Listener{
+		Port: 5984,
+		Run: edge.Command{
+			Stdout: ioutil.Discard,
+			Stderr: ioutil.Discard,
+			Cmd: []string{
+				"docker",
+				"run",
+				"--name", "eDB",
+				"-p", "127.0.0.1:5984:5984",
+				"-e", "COUCHDB_USER=admin",
+				"-e", "COUCHDB_PASSWORD=password",
+				"couchdb",
+			},
+		},
+	}))
+	fmt.Printf("Available eDB:%d %s\n", eDB.Port, common.AsJsonPretty(eDB.Available()))
+	time.Sleep(12 * time.Second)
+
 	eAuth, err := edge.Start(&edge.Edge{
 		Name:      "eAuth",
 		CertPath:  certPath,
@@ -33,7 +64,7 @@ func TestEdge(t *testing.T) {
 	TryTest(t, eAuth.Spawn(edge.Listener{
 		PortIntoEnv: "EAUTH_PORT",
 		Run: edge.Command{
-			Cmd: []string{"/usr/bin/authsvr"},
+			Cmd: []string{"ls"},
 		},
 	}))
 
@@ -49,25 +80,7 @@ func TestEdge(t *testing.T) {
 	TryTest(t, eAuth2.Spawn(edge.Listener{
 		PortIntoEnv: "EAUTH_PORT",
 		Run: edge.Command{
-			Cmd: []string{"/usr/bin/authsvr"},
-		},
-	}))
-
-	// This is a sidecar for a database on random port
-	eDB, err := edge.Start(&edge.Edge{
-		Name:      "eDB_eWeb",
-		CertPath:  certPath,
-		KeyPath:   keyPath,
-		TrustPath: trustPath,
-	})
-	TryTest(t, err)
-	defer eDB.Close()
-
-	TryTest(t, eDB.Spawn(edge.Listener{
-		PortIntoCmdArg: 2, // write into an arg
-		Run: edge.Command{
-			Pwd: "/etc/edb",
-			Cmd: []string{"/usr/bin/edb", "-p", "????", "-s", "eWeb"},
+			Cmd: []string{"ls"},
 		},
 	}))
 
@@ -90,7 +103,7 @@ func TestEdge(t *testing.T) {
 		Expose:      true,
 		PortIntoEnv: "EWEB_PORT",
 		Run: edge.Command{
-			Cmd: []string{"/usr/bin/eWeb"},
+			Cmd: []string{"ls"},
 			Env: []string{
 				"EDB_PORT", eDB_eWeb_port.String(),
 				"EAUTH_PORT", eAuth_port.String(),
@@ -105,14 +118,15 @@ func TestEdge(t *testing.T) {
 
 	// Log info about it
 	fmt.Printf("Available eAuth:%d %s\n", eAuth.Port, common.AsJsonPretty(eAuth.Available()))
-	fmt.Printf("Available eDB:%d %s\n", eDB.Port, common.AsJsonPretty(eDB.Available()))
 	fmt.Printf("Available eWeb:%d %s\n", eWeb.Port, common.AsJsonPretty(eWeb.Available()))
 
-	eWeb_data, err := eWeb.GetFromPeer(eWeb.PeerName(), "/"+eWeb.Name+"/hello")
-	TryTest(t, err)
-	fmt.Printf("Got: %s\n", eWeb_data)
-
-	eDB_eWeb_data, err := eWeb.GetFromPeer(eWeb.PeerName(), "/"+eWeb.Required[0].Name+"/hello")
+	eDB_eWeb_data, err := eWeb.GetFromPeer(eWeb.PeerName(), "/"+eWeb.Required[0].Name+"/")
 	TryTest(t, err)
 	fmt.Printf("Got: %s\n", eDB_eWeb_data)
+
+	/*
+		eWeb_data, err := eWeb.GetFromPeer(eWeb.PeerName(), "/"+eWeb.Name+"/")
+		TryTest(t, err)
+		fmt.Printf("Got: %s\n", eWeb_data)
+	*/
 }
