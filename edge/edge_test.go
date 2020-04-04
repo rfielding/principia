@@ -139,10 +139,10 @@ func TestEdge(t *testing.T) {
 	TryTest(t, err)
 	fmt.Printf("Got: %s\n", eWeb_data)
 
-	eWeb_data2, err := eWeb.GetFromPeer("localhost:9022", "/eWeb/")
+	eWeb_data2, err := eWeb.GetFromPeer(eWeb.PeerName(), "/eWeb/")
 	TryTest(t, err)
 	fmt.Printf("Got: %s\n", eWeb_data2)
 
-	fmt.Printf("https://localhost:9022/eWeb/")
+	fmt.Printf("https://%s/eWeb/", eWeb.PeerName())
 	time.Sleep(5 * time.Minute)
 }
