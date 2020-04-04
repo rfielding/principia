@@ -500,7 +500,7 @@ func (e *Edge) Peer(host string, port Port) {
 	e.LastAvailable = e.Available()
 }
 
-func (e *Edge) dependencyTransport(src_conn net.Conn, listener string) {
+func (e *Edge) dependencyTransport(src_conn net.Conn, service string) {
 	sidecar := e.SidecarName()
 	dest_conn, err := net.DialTimeout(
 		"tcp",
@@ -512,7 +512,7 @@ func (e *Edge) dependencyTransport(src_conn net.Conn, listener string) {
 		return
 	}
 	e.Logger.Info("prologue websocket to sidecar %s", sidecar)
-	err = e.wsPrologue(sidecar, "/"+listener+"/", dest_conn)
+	err = e.wsPrologue(sidecar, "/"+service+"/", dest_conn)
 	if err != nil {
 		src_conn.Close()
 		dest_conn.Close()
