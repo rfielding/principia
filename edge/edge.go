@@ -101,11 +101,11 @@ type Edge struct {
 	TLSClientConfig *tls.Config
 	InternalServer  http.Server
 	ExternalServer  http.Server
-	LastAvailable   map[string]*Item
+	LastAvailable   map[string]*Service
 	Done            chan bool
 }
 
-type Item struct {
+type Service struct {
 	Endpoint   string   `json:"Endpoint,omitempty"`
 	Volunteers []string `json:"Volunteers,omitempty"`
 	Expose     bool     `json:"Expose,omitempty"`
@@ -141,50 +141,50 @@ func (e *Edge) GetFromPeer(peerName string, cmd string) ([]byte, error) {
 	return j, err
 }
 
-func (e *Edge) AvailableFromPeer(peer Peer) (map[string]*Item, error) {
+func (e *Edge) AvailableFromPeer(peer Peer) (map[string]*Service, error) {
 	j, err := e.GetFromPeer(peer.Name(), "/available")
 	if err != nil {
 		return nil, err
 	}
-	var items map[string]*Item
-	err = json.Unmarshal(j, &items)
+	var services map[string]*Service
+	err = json.Unmarshal(j, &services)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to marshal response from: %v", err)
 	}
-	return items, nil
+	return services, nil
 }
 
 // Available should be periodically polled for
 // ports available to service us
-func (e *Edge) Available() map[string]*Item {
+func (e *Edge) Available() map[string]*Service {
 	logger := e.Logger.Push("Available")
-	available := make(map[string]*Item)
+	available := make(map[string]*Service)
 	// These are locally implemented
 	for _, lsn := range e.Listeners {
-		available[lsn.Name] = &Item{
+		available[lsn.Name] = &Service{
 			Endpoint: fmt.Sprintf("127.0.0.1:%d", lsn.Port),
 			Expose:   lsn.Expose,
 		}
 	}
 	// These exist remotely
 	for _, rq := range e.Required {
-		available[rq.Name] = &Item{
+		available[rq.Name] = &Service{
 			Endpoint:   fmt.Sprintf("127.0.0.1:%d", rq.Port),
 			Volunteers: make([]string, 0),
 		}
 	}
 	// We narrow it down to which peers implement this
 	for p, peer := range e.Peers {
-		items, err := e.AvailableFromPeer(peer)
+		services, err := e.AvailableFromPeer(peer)
 		if err != nil {
 			logger.Error("peer unavailable: %v", err)
 		}
-		if items == nil && time.Now().Unix() > e.Peers[p].ExpiresAt.Unix() {
+		if services == nil && time.Now().Unix() > e.Peers[p].ExpiresAt.Unix() {
 			// it's expired and we could not contact it
 		} else {
-			if items != nil {
+			if services != nil {
 				e.Peers[p].ExpiresAt = time.Now().Add(e.DefaultLease)
-				for kName, _ := range items {
+				for kName, _ := range services {
 					for _, rq := range e.Required {
 						if kName == rq.Name {
 							available[kName].Volunteers =

@@ -42,13 +42,13 @@ func TestEdge(t *testing.T) {
 	TryTest(t, err)
 	defer eDB.Close()
 
-	eAuth, err := edge.Start(&edge.Edge{
+	eAuth1, err := edge.Start(&edge.Edge{
 		CertPath:  certPath,
 		KeyPath:   keyPath,
 		TrustPath: trustPath,
 	})
 	TryTest(t, err)
-	defer eAuth.Close()
+	defer eAuth1.Close()
 
 	eAuth2, err := edge.Start(&edge.Edge{
 		CertPath:  certPath,
@@ -95,7 +95,7 @@ func TestEdge(t *testing.T) {
 	}))
 	testLogger.Info("Available eDB:%d %s\n", eDB.Port, common.AsJsonPretty(eDB.Available()))
 
-	TryTest(t, eAuth.Spawn(edge.Listener{
+	TryTest(t, eAuth1.Spawn(edge.Listener{
 		Name:        "eAuth",
 		PortIntoEnv: "EAUTH_PORT",
 		Run: edge.Command{
@@ -127,13 +127,14 @@ func TestEdge(t *testing.T) {
 	eDB_eWeb_port := edge.AllocPort()
 	eAuth_port := edge.AllocPort()
 	eWeb.Peer(eDB.Host, eDB.Port)
-	eWeb.Peer(eAuth.Host, eAuth.Port)
-	eWeb.Peer(eAuth2.Host, eAuth.Port)
+	eWeb.Peer(eAuth1.Host, eAuth1.Port)
+	eWeb.Peer(eAuth2.Host, eAuth2.Port)
 	eWeb.Requires("eDB_eWeb", eDB_eWeb_port)
 	eWeb.Requires("eAuth", eAuth_port)
 
 	// Log info about it
-	testLogger.Info("Available eAuth:%d %s\n", eAuth.Port, common.AsJsonPretty(eAuth.Available()))
+	testLogger.Info("Available eAuth1:%d %s\n", eAuth1.Port, common.AsJsonPretty(eAuth1.Available()))
+	testLogger.Info("Available eAuth2:%d %s\n", eAuth2.Port, common.AsJsonPretty(eAuth2.Available()))
 	testLogger.Info("Available eWeb:%d %s\n", eWeb.Port, common.AsJsonPretty(eWeb.Available()))
 
 	eDB_eWeb_data, err := eDB.GetFromPeer(eWeb.PeerName(), "/eDB_eWeb/")
