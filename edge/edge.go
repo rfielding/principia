@@ -120,16 +120,17 @@ func (e *Edge) PeerName() string {
 }
 
 func (e *Edge) GetFromPeer(peerName string, cmd string) ([]byte, error) {
+	logger := e.Logger.Push("GetFromPeer")
 	url := fmt.Sprintf("https://%s%s", peerName, cmd)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		e.Logger.Error("error creating search %s for peer: %v", url, err)
+		logger.Error("error creating search %s for peer: %v", url, err)
 		return nil, err
 	}
 
 	res, err := e.HttpClient.Do(req)
 	if err != nil {
-		e.Logger.Error("error searching peer: %v", err)
+		logger.Error("error searching peer: %v", err)
 		return nil, err
 	}
 	if res.StatusCode != http.StatusOK {
@@ -156,6 +157,7 @@ func (e *Edge) AvailableFromPeer(peer Peer) (map[string]*Item, error) {
 // Available should be periodically polled for
 // ports available to service us
 func (e *Edge) Available() map[string]*Item {
+	logger := e.Logger.Push("Available")
 	available := make(map[string]*Item)
 	// These are locally implemented
 	for _, lsn := range e.Listeners {
@@ -175,7 +177,7 @@ func (e *Edge) Available() map[string]*Item {
 	for p, peer := range e.Peers {
 		items, err := e.AvailableFromPeer(peer)
 		if err != nil {
-			e.Logger.Error("peer unavailable: %v", err)
+			logger.Error("peer unavailable: %v", err)
 		}
 		if items == nil && time.Now().Unix() > e.Peers[p].ExpiresAt.Unix() {
 			// it's expired and we could not contact it
@@ -299,6 +301,7 @@ func (e *Edge) wsTransport(w http.ResponseWriter, r *http.Request, res *http.Res
 
 // ServeHTTP serves up http for this service
 func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	logger := e.Logger.Push("ServeHTTP")
 	// Find static items
 	if r.Method == "GET" {
 		if r.RequestURI == "/available" {
@@ -306,7 +309,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	e.Logger.Info("%s %s", r.Method, r.RequestURI)
+	logger.Info("%s %s", r.Method, r.RequestURI)
 	wantsWebsockets := r.Header.Get("Connection") == "Upgrade" &&
 		r.Header.Get("Upgrade") == "websocket"
 	// Find local listeners - we modify the url
@@ -314,12 +317,12 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.RequestURI, "/"+lsn.Name+"/") {
 			path := "/" + r.RequestURI[2+len(lsn.Name):]
 			url := fmt.Sprintf("http://127.0.0.1:%s%s", lsn.Port, path)
-			e.Logger.Info("listener: GET %s -> %s %s", r.RequestURI, lsn.Name, url)
+			logger.Info("listener: GET %s -> %s %s", r.RequestURI, lsn.Name, url)
 			req, err := http.NewRequest(r.Method, url, r.Body)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				msg := fmt.Sprintf("Failed To Create Request: %v", err)
-				e.Logger.Error(msg)
+				logger.Error(msg)
 				w.Write([]byte(msg))
 				return
 			}
@@ -358,7 +361,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				rv := int(rand.Int31n(int32(len(volunteers))))
 				volunteer := volunteers[rv]
 				to := fmt.Sprintf("https://%s%s", volunteer, r.RequestURI)
-				e.Logger.Info("volunteer: %s %s -> %s", r.Method, to, volunteer)
+				logger.Info("volunteer: %s %s -> %s", r.Method, to, volunteer)
 				req, err := http.NewRequest(r.Method, to, r.Body)
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)

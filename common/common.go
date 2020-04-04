@@ -13,31 +13,48 @@ func AsJsonPretty(obj interface{}) []byte {
 }
 
 type Logger struct {
-	Info  func(mask string, argv ...interface{}) (int, error)
-	Debug func(mask string, argv ...interface{}) (int, error)
-	Error func(mask string, argv ...interface{}) (int, error)
+	Assert func(condition bool, message string)
+	Info   func(mask string, argv ...interface{}) (int, error)
+	Debug  func(mask string, argv ...interface{}) (int, error)
+	Error  func(mask string, argv ...interface{}) (int, error)
+	State  string
+	Id     string
 }
 
 func NewLogger(id string) Logger {
+	return initLogger(Logger{Id: id})
+}
+
+func (logger Logger) Push(state string) Logger {
+	logger.State = fmt.Sprintf("%s/%s", logger.State, state)
+	return logger
+}
+
+func initLogger(logger Logger) Logger {
 	logFunc := func(level string, mask string, argv ...interface{}) (int, error) {
 		msg := fmt.Sprintf(mask, argv...)
 		lines := strings.Split(msg, "\n")
 		for i := range lines {
-			fmt.Printf("%s:%s: %s\n", level, id, lines[i])
+			fmt.Printf("%s|%s|%s: %s\n", logger.Id, level, logger.State, lines[i])
 		}
 		return 0, nil
 	}
-	return Logger{
-		Info: func(mask string, argv ...interface{}) (int, error) {
-			return logFunc("INFO", mask, argv...)
-		},
-		Debug: func(mask string, argv ...interface{}) (int, error) {
-			return logFunc("DEBUG", mask, argv...)
-		},
-		Error: func(mask string, argv ...interface{}) (int, error) {
-			return logFunc("ERROR", mask, argv...)
-		},
+
+	logger.Assert = func(condition bool, message string) {
+		if condition == false {
+			panic(message)
+		}
 	}
+	logger.Info = func(mask string, argv ...interface{}) (int, error) {
+		return logFunc("INFO", mask, argv...)
+	}
+	logger.Debug = func(mask string, argv ...interface{}) (int, error) {
+		return logFunc("DEBUG", mask, argv...)
+	}
+	logger.Error = func(mask string, argv ...interface{}) (int, error) {
+		return logFunc("ERROR", mask, argv...)
+	}
+	return logger
 }
 
 func VerifyPeerCertificate(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
