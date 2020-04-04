@@ -71,8 +71,10 @@ func TestEdge(t *testing.T) {
 
 	TryTest(t, eDB.Spawn(edge.Listener{
 		Name: "eDB_eWeb",
-		Port: 5984,
 		Run: edge.Command{
+			EditFn: func(lsn *edge.Listener) {
+				lsn.Run.Cmd[5] = fmt.Sprintf("127.0.0.1:%d:5984", lsn.Port)
+			},
 			Stdout: ioutil.Discard,
 			Stderr: ioutil.Discard,
 			Cmd: []string{
@@ -84,6 +86,7 @@ func TestEdge(t *testing.T) {
 				"-e", "COUCHDB_PASSWORD=password",
 				"couchdb",
 			},
+			Dir: ".",
 		},
 	}))
 	fmt.Printf("Available eDB:%d %s\n", eDB.Port, common.AsJsonPretty(eDB.Available()))

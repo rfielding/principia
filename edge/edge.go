@@ -47,13 +47,14 @@ type Peer struct {
 type Command struct {
 	Cmd     []string
 	Env     []string
-	Pwd     string
+	Dir     string
 	Stdout  io.Writer
 	Stderr  io.Writer
 	Stdin   io.Reader
 	Running *exec.Cmd
 	Static  string
 	Server  *http.Server
+	EditFn  func(lsn *Listener)
 }
 
 // Listener is a spawned process that exposes a port
@@ -240,6 +241,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				w.Write([]byte(msg))
 				return
 			}
+			req.Header = r.Header
 			cl := e.HttpClient
 			res, err := cl.Do(req)
 			if err != nil {
@@ -272,6 +274,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					w.Write([]byte(msg))
 					return
 				}
+				req.Header = r.Header
 				cl := e.HttpClient
 				res, err := cl.Do(req)
 				if err != nil {
@@ -310,6 +313,9 @@ func (e *Edge) Spawn(lsn Listener) error {
 	if lsn.Run.Stdin == nil {
 		lsn.Run.Stdin = os.Stdin
 	}
+	if lsn.Run.EditFn != nil {
+		lsn.Run.EditFn(&lsn)
+	}
 	e.Logger("edge.Spawn: %s", common.AsJsonPretty(lsn))
 	// Actually execute the command
 	if len(lsn.Run.Cmd) > 0 {
@@ -317,6 +323,8 @@ func (e *Edge) Spawn(lsn Listener) error {
 		lsn.Run.Running.Stdout = lsn.Run.Stdout
 		lsn.Run.Running.Stderr = lsn.Run.Stderr
 		lsn.Run.Running.Stdin = lsn.Run.Stdin
+		lsn.Run.Running.Dir = lsn.Run.Dir
+		lsn.Run.Running.Env = append(os.Environ(), lsn.Run.Env...)
 		go func() {
 			err := lsn.Run.Running.Run()
 			if err != nil {
