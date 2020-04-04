@@ -23,9 +23,13 @@ func TestEdge(t *testing.T) {
 	// every peer trusts trustPath certs
 	trustPath := "./test_cert.pem"
 
+	/**
+	Spawn a bunch of Edge machines.  They are
+	effectively identical.
+	*/
+
 	// This is a sidecar for a database on random port
 	eDB, err := edge.Start(&edge.Edge{
-		Name:      "eDB_eWeb",
 		CertPath:  certPath,
 		KeyPath:   keyPath,
 		TrustPath: trustPath,
@@ -33,7 +37,40 @@ func TestEdge(t *testing.T) {
 	TryTest(t, err)
 	defer eDB.Close()
 
+	eAuth, err := edge.Start(&edge.Edge{
+		CertPath:  certPath,
+		KeyPath:   keyPath,
+		TrustPath: trustPath,
+	})
+	TryTest(t, err)
+	defer eAuth.Close()
+
+	eAuth2, err := edge.Start(&edge.Edge{
+		CertPath:  certPath,
+		KeyPath:   keyPath,
+		TrustPath: trustPath,
+	})
+	TryTest(t, err)
+	defer eAuth2.Close()
+
+	// This is a proxy on 8122 to a web server on 8123, talking to db on
+	eWeb, err := edge.Start(&edge.Edge{
+		Port:      9022,
+		Host:      "localhost",
+		CertPath:  certPath,
+		KeyPath:   keyPath,
+		TrustPath: trustPath,
+	})
+	TryTest(t, err)
+	defer eWeb.Close()
+
+	/*
+		  In the edge machines, we should spawn some commands.
+			TODO: wait until port can be reached
+	*/
+
 	TryTest(t, eDB.Spawn(edge.Listener{
+		Name: "eDB_eWeb",
 		Port: 5984,
 		Run: edge.Command{
 			Stdout: ioutil.Discard,
@@ -50,66 +87,37 @@ func TestEdge(t *testing.T) {
 		},
 	}))
 	fmt.Printf("Available eDB:%d %s\n", eDB.Port, common.AsJsonPretty(eDB.Available()))
-	time.Sleep(12 * time.Second)
-
-	eAuth, err := edge.Start(&edge.Edge{
-		Name:      "eAuth",
-		CertPath:  certPath,
-		KeyPath:   keyPath,
-		TrustPath: trustPath,
-	})
-	TryTest(t, err)
-	defer eAuth.Close()
 
 	TryTest(t, eAuth.Spawn(edge.Listener{
+		Name:        "eAuth",
 		PortIntoEnv: "EAUTH_PORT",
 		Run: edge.Command{
 			Cmd: []string{"ls"},
 		},
 	}))
-
-	eAuth2, err := edge.Start(&edge.Edge{
-		Name:      "eAuth",
-		CertPath:  certPath,
-		KeyPath:   keyPath,
-		TrustPath: trustPath,
-	})
-	TryTest(t, err)
-	defer eAuth2.Close()
 
 	TryTest(t, eAuth2.Spawn(edge.Listener{
+		Name:        "eAuth",
 		PortIntoEnv: "EAUTH_PORT",
 		Run: edge.Command{
 			Cmd: []string{"ls"},
 		},
 	}))
 
-	// This is a proxy on 8122 to a web server on 8123, talking to db on
-	eWeb, err := edge.Start(&edge.Edge{
-		Name:      "eWeb",
-		CertPath:  certPath,
-		KeyPath:   keyPath,
-		TrustPath: trustPath,
-	})
-	TryTest(t, err)
-	defer eWeb.Close()
+	// Spawn the web server talking to the db
+	TryTest(t, eWeb.Spawn(edge.Listener{
+		Name:   "eWeb",
+		Expose: true,
+		Run: edge.Command{
+			Static: ".",
+		},
+	}))
+
+	time.Sleep(10 * time.Second)
 
 	// Allocate an arbitrary port for the db
 	eDB_eWeb_port := edge.AllocPort()
 	eAuth_port := edge.AllocPort()
-
-	// Spawn the web server talking to the db
-	TryTest(t, eWeb.Spawn(edge.Listener{
-		Expose:      true,
-		PortIntoEnv: "EWEB_PORT",
-		Run: edge.Command{
-			Cmd: []string{"ls"},
-			Env: []string{
-				"EDB_PORT", eDB_eWeb_port.String(),
-				"EAUTH_PORT", eAuth_port.String(),
-			},
-		},
-	}))
 	eWeb.Peer(eDB.Host, eDB.Port)
 	eWeb.Peer(eAuth.Host, eAuth.Port)
 	eWeb.Peer(eAuth2.Host, eAuth.Port)
@@ -120,13 +128,17 @@ func TestEdge(t *testing.T) {
 	fmt.Printf("Available eAuth:%d %s\n", eAuth.Port, common.AsJsonPretty(eAuth.Available()))
 	fmt.Printf("Available eWeb:%d %s\n", eWeb.Port, common.AsJsonPretty(eWeb.Available()))
 
-	eDB_eWeb_data, err := eWeb.GetFromPeer(eWeb.PeerName(), "/"+eWeb.Required[0].Name+"/")
+	eDB_eWeb_data, err := eDB.GetFromPeer(eWeb.PeerName(), "/eDB_eWeb/")
 	TryTest(t, err)
 	fmt.Printf("Got: %s\n", eDB_eWeb_data)
 
-	/*
-		eWeb_data, err := eWeb.GetFromPeer(eWeb.PeerName(), "/"+eWeb.Name+"/")
-		TryTest(t, err)
-		fmt.Printf("Got: %s\n", eWeb_data)
-	*/
+	eWeb_data, err := eWeb.GetFromPeer(eWeb.PeerName(), "/eDB_eWeb/")
+	TryTest(t, err)
+	fmt.Printf("Got: %s\n", eWeb_data)
+
+	eWeb_data2, err := eWeb.GetFromPeer("localhost:9022", "/eWeb/")
+	TryTest(t, err)
+	fmt.Printf("Got: %s\n", eWeb_data2)
+
+	time.Sleep(5 * time.Minute)
 }

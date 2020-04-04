@@ -52,6 +52,8 @@ type Command struct {
 	Stderr  io.Writer
 	Stdin   io.Reader
 	Running *exec.Cmd
+	Static  string
+	Server  *http.Server
 }
 
 // Listener is a spawned process that exposes a port
@@ -262,7 +264,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				ritem := int(rand.Int31n(int32(len(volunteers))))
 				item := volunteers[ritem]
 				to := fmt.Sprintf("https://%s%s", item, r.RequestURI)
-				e.Logger("volinteer: %s %s -> %s", r.Method, to, item)
+				e.Logger("volunteer: %s %s -> %s", r.Method, to, item)
 				req, err := http.NewRequest(r.Method, to, r.Body)
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
@@ -288,13 +290,13 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // Tells us to listen internally on a port
 func (e *Edge) Spawn(lsn Listener) error {
 	if lsn.Name == "" {
-		lsn.Name = e.Name
+		return fmt.Errorf("We must name spawned items")
 	}
 	if lsn.Port == 0 {
 		lsn.Port = AllocPort()
-		if lsn.PortIntoCmdArg > 0 {
-			lsn.Run.Cmd[lsn.PortIntoCmdArg] = lsn.Port.String()
-		}
+	}
+	if lsn.PortIntoCmdArg > 0 {
+		lsn.Run.Cmd[lsn.PortIntoCmdArg] = lsn.Port.String()
 	}
 	if lsn.Bind == "" {
 		lsn.Bind = "127.0.0.1"
@@ -310,13 +312,35 @@ func (e *Edge) Spawn(lsn Listener) error {
 	}
 	e.Logger("edge.Spawn: %s", common.AsJsonPretty(lsn))
 	// Actually execute the command
-	lsn.Run.Running = exec.Command(lsn.Run.Cmd[0], lsn.Run.Cmd[1:]...)
-	lsn.Run.Running.Stdout = lsn.Run.Stdout
-	lsn.Run.Running.Stderr = lsn.Run.Stderr
-	lsn.Run.Running.Stdin = lsn.Run.Stdin
-	go func() {
-		lsn.Run.Running.Run()
-	}()
+	if len(lsn.Run.Cmd) > 0 {
+		lsn.Run.Running = exec.Command(lsn.Run.Cmd[0], lsn.Run.Cmd[1:]...)
+		lsn.Run.Running.Stdout = lsn.Run.Stdout
+		lsn.Run.Running.Stderr = lsn.Run.Stderr
+		lsn.Run.Running.Stdin = lsn.Run.Stdin
+		go func() {
+			err := lsn.Run.Running.Run()
+			if err != nil {
+				e.Logger("failed to spawn cmd for %d: %v", lsn.Port, err)
+			}
+		}()
+	} else {
+		if len(lsn.Run.Static) > 0 {
+			bind := fmt.Sprintf("127.0.0.1:%d", lsn.Port)
+			e.Logger("spawn static: http://%s vs %s", bind, lsn.Run.Static)
+			lsn.Run.Server = &http.Server{
+				Addr:    bind,
+				Handler: http.FileServer(http.Dir(lsn.Run.Static)),
+			}
+			go func() {
+				err := lsn.Run.Server.ListenAndServe()
+				if err != nil {
+					e.Logger("failed to run internal static file server for %s: %v", bind, err)
+				}
+			}()
+		} else {
+			return fmt.Errorf("Must specify a Run.Cmd, or a Run.Static")
+		}
+	}
 	e.Listeners = append(e.Listeners, lsn)
 
 	// Periodic poller start
@@ -360,6 +384,9 @@ func (e *Edge) Close() error {
 		if lsn.Run.Running != nil {
 			lsn.Run.Running.Process.Kill()
 		}
+		if lsn.Run.Server != nil {
+			lsn.Run.Server.Shutdown(context.Background())
+		}
 	}
 	e.ExternalServer.Shutdown(context.Background())
 	e.InternalServer.Shutdown(context.Background())
@@ -385,7 +412,10 @@ func Start(e *Edge) (*Edge, error) {
 	if e.Bind == "" {
 		e.Bind = "0.0.0.0"
 	}
-	if e.Name != "" && e.Logger == nil {
+	if e.Name == "" {
+		e.Name = fmt.Sprintf("%s:%d", e.Host, e.Port)
+	}
+	if e.Logger == nil {
 		e.Logger = common.NewLogger(fmt.Sprintf("%s:%s:%d", e.Name, e.Host, e.Port))
 	}
 	e.Listeners = make([]Listener, 0)
