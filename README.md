@@ -45,15 +45,14 @@ ports; and ports can be deconflicted so that we can run many instances on one
 machine.
 
 ```go
-  // Create an Edge that will spawn on a random port
   eAuth, err := edge.Start(&edge.Edge{
-		Name:      "eAuth",
-		CertPath:  certPath,
-		KeyPath:   keyPath,
-		TrustPath: trustPath,
-	})
-	TryTest(t, err)
-	defer eAuth.Close()
+    Host:      "localhost",
+    CertPath:  certPath,
+    KeyPath:   keyPath,
+    TrustPath: trustPath,
+  })
+  TryTest(t, err)
+  defer eWeb.Close()
 
   // Tell it to run a program with random port, with env var EAUTH_PORT injected
 	TryTest(t, eAuth.Spawn(edge.Listener{

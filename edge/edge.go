@@ -46,16 +46,17 @@ type Peer struct {
 }
 
 type Command struct {
-	Cmd     []string
-	Env     []string
-	Dir     string
-	Stdout  io.Writer
-	Stderr  io.Writer
-	Stdin   io.Reader
-	Running *exec.Cmd
-	Static  string
-	Server  *http.Server
-	EditFn  func(lsn *Listener)
+	Cmd       []string
+	Env       []string
+	Dir       string
+	Stdout    io.Writer
+	Stderr    io.Writer
+	Stdin     io.Reader
+	Running   *exec.Cmd
+	Static    string
+	Server    *http.Server
+	EditFn    func(lsn *Listener)
+	HttpCheck string
 }
 
 // Listener is a spawned process that exposes a port
@@ -298,7 +299,6 @@ func (e *Edge) wsTransport(w http.ResponseWriter, r *http.Request, res *http.Res
 
 // ServeHTTP serves up http for this service
 func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	e.Logger("%s %s", r.Method, r.RequestURI)
 	// Find static items
 	if r.Method == "GET" {
 		if r.RequestURI == "/available" {
@@ -306,6 +306,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	e.Logger("%s %s", r.Method, r.RequestURI)
 	wantsWebsockets := r.Header.Get("Connection") == "Upgrade" &&
 		r.Header.Get("Upgrade") == "websocket"
 	// Find local listeners - we modify the url
@@ -450,6 +451,33 @@ func (e *Edge) Spawn(lsn Listener) error {
 			return fmt.Errorf("Must specify a Run.Cmd, or a Run.Static")
 		}
 	}
+	// Wait until the port is ready
+	ready := make(chan bool)
+	go func() {
+		for {
+			if lsn.Run.HttpCheck == "" {
+				ready <- true
+				return
+			}
+			url := fmt.Sprintf("http://127.0.0.1:%d", lsn.Port)
+			req, _ := http.NewRequest("GET", url, nil)
+			cl := http.Client{}
+			res, err := cl.Do(req)
+			if err != nil {
+				//e.Logger("not ready: %v", err)
+				time.Sleep(1 * time.Second)
+				continue
+			}
+			res.Body.Close()
+			if res.StatusCode != 200 {
+				continue
+			}
+			ready <- true
+			return
+		}
+	}()
+	_ = <-ready
+
 	e.Listeners = append(e.Listeners, lsn)
 
 	// Periodic poller start

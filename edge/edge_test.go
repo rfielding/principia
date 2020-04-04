@@ -26,6 +26,8 @@ func TestEdge(t *testing.T) {
 	// every peer trusts trustPath certs
 	trustPath := "./test_cert.pem"
 
+	testLogger := common.NewLogger("integrationTest")
+
 	/**
 	Spawn a bunch of Edge machines.  They are
 	effectively identical.
@@ -56,7 +58,6 @@ func TestEdge(t *testing.T) {
 	TryTest(t, err)
 	defer eAuth2.Close()
 
-	// This is a proxy on 8122 to a web server on 8123, talking to db on
 	eWeb, err := edge.Start(&edge.Edge{
 		Host:      "localhost",
 		CertPath:  certPath,
@@ -88,10 +89,11 @@ func TestEdge(t *testing.T) {
 				"-e", "COUCHDB_PASSWORD=password",
 				"couchdb",
 			},
-			Dir: ".",
+			Dir:       ".",
+			HttpCheck: "/",
 		},
 	}))
-	fmt.Printf("Available eDB:%d %s\n", eDB.Port, common.AsJsonPretty(eDB.Available()))
+	testLogger("Available eDB:%d %s\n", eDB.Port, common.AsJsonPretty(eDB.Available()))
 
 	TryTest(t, eAuth.Spawn(edge.Listener{
 		Name:        "eAuth",
@@ -114,11 +116,12 @@ func TestEdge(t *testing.T) {
 		Name:   "eWeb",
 		Expose: true,
 		Run: edge.Command{
-			Static: ".",
+			Static:    ".",
+			HttpCheck: "/",
 		},
 	}))
 
-	time.Sleep(10 * time.Second)
+	//time.Sleep(10 * time.Second)
 
 	// Allocate an arbitrary port for the db
 	eDB_eWeb_port := edge.AllocPort()
@@ -130,20 +133,20 @@ func TestEdge(t *testing.T) {
 	eWeb.Requires("eAuth", eAuth_port)
 
 	// Log info about it
-	fmt.Printf("Available eAuth:%d %s\n", eAuth.Port, common.AsJsonPretty(eAuth.Available()))
-	fmt.Printf("Available eWeb:%d %s\n", eWeb.Port, common.AsJsonPretty(eWeb.Available()))
+	testLogger("Available eAuth:%d %s\n", eAuth.Port, common.AsJsonPretty(eAuth.Available()))
+	testLogger("Available eWeb:%d %s\n", eWeb.Port, common.AsJsonPretty(eWeb.Available()))
 
 	eDB_eWeb_data, err := eDB.GetFromPeer(eWeb.PeerName(), "/eDB_eWeb/")
 	TryTest(t, err)
-	fmt.Printf("Got: %s\n", eDB_eWeb_data)
+	testLogger("Got: %s\n", eDB_eWeb_data)
 
 	eWeb_data, err := eWeb.GetFromPeer(eWeb.PeerName(), "/eDB_eWeb/")
 	TryTest(t, err)
-	fmt.Printf("Got: %s\n", eWeb_data)
+	testLogger("Got: %s\n", eWeb_data)
 
 	eWeb_data2, err := eWeb.GetFromPeer(eWeb.PeerName(), "/eWeb/")
 	TryTest(t, err)
-	fmt.Printf("Got: %s\n", eWeb_data2)
+	testLogger("Got: %s\n", eWeb_data2)
 	/*
 		conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", eWeb.Host, eWeb.Port), time.Duration(10*time.Second))
 		TryTest(t, err)
@@ -151,7 +154,7 @@ func TestEdge(t *testing.T) {
 		//io.Copy(os.Stdout, conn)
 		conn.Close()
 	*/
-	fmt.Printf("https://%s/eWeb/", eWeb.PeerName())
+	testLogger("https://%s/eWeb/", eWeb.PeerName())
 
 	time.Sleep(5 * time.Minute)
 }
