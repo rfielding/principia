@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"math/rand"
+	"io"
 )
 
 /*
@@ -229,8 +231,32 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	available := e.LastAvailable
 	for name := range available {
 		if strings.HasPrefix(r.RequestURI, "/"+name+"/") {
+			volunteerNames := make([]string,0)
 			for _, item := range available[name].Volunteers {
-				e.Logger("GET %s -> %s %s", r.RequestURI, item, r.RequestURI)
+				volunteerNames = append(volunteerNames, item)
+				//e.Logger("GET %s -> %s %s", r.RequestURI, item, r.RequestURI)
+				//return
+			}
+			// Pick a random volunteer
+			if len(volunteerNames) > 0 {
+				ritem := int(rand.Int31n(int32(len(volunteerNames))))
+				item := volunteerNames[ritem]
+				to := fmt.Sprintf("https://%s%s", item, r.RequestURI)
+				e.Logger("%s %s -> %s", r.Method, to, item)
+				req, err := http.NewRequest(r.Method, to, r.Body)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					w.Write([]byte(fmt.Sprintf("Failed To Create Request: %v", err)))
+					return
+				}
+				cl := e.HttpClient
+				res, err := cl.Do(req)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					w.Write([]byte(fmt.Sprintf("Failed To Perform Request: %v", err)))
+					return
+				}
+				io.Copy(w, res.Body)
 				return
 			}
 		}
