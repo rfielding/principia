@@ -76,9 +76,9 @@ type Listener struct {
 }
 
 type Dependency struct {
-	Name string
-	Port Port
-	Lsn  net.Listener
+	Name   string
+	Port   Port
+	Tunnel net.Listener
 }
 
 // Edge is pointed to by Peer, and contains the reverse proxy to
@@ -537,9 +537,9 @@ func (e *Edge) Dependency(service string, port Port) error {
 		return err
 	}
 	rq := Dependency{
-		Name: service,
-		Port: port,
-		Lsn:  spawned,
+		Name:   service,
+		Port:   port,
+		Tunnel: spawned,
 	}
 	e.Dependencies = append(e.Dependencies, rq)
 	go func() {
@@ -557,8 +557,8 @@ func (e *Edge) Dependency(service string, port Port) error {
 
 func (e *Edge) Close() error {
 	for _, rq := range e.Dependencies {
-		if rq.Lsn != nil {
-			rq.Lsn.Close()
+		if rq.Tunnel != nil {
+			rq.Tunnel.Close()
 		}
 	}
 	for _, lsn := range e.Listeners {
