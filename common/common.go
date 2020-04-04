@@ -12,16 +12,31 @@ func AsJsonPretty(obj interface{}) []byte {
 	return s
 }
 
-type Logger func(mask string, argv ...interface{}) (int, error)
+type Logger struct {
+	Info  func(mask string, argv ...interface{}) (int, error)
+	Debug func(mask string, argv ...interface{}) (int, error)
+	Error func(mask string, argv ...interface{}) (int, error)
+}
 
 func NewLogger(id string) Logger {
-	return func(mask string, argv ...interface{}) (int, error) {
+	logFunc := func(level string, mask string, argv ...interface{}) (int, error) {
 		msg := fmt.Sprintf(mask, argv...)
 		lines := strings.Split(msg, "\n")
 		for i := range lines {
-			fmt.Printf("%s: %s\n", id, lines[i])
+			fmt.Printf("%s:%s: %s\n", level, id, lines[i])
 		}
 		return 0, nil
+	}
+	return Logger{
+		Info: func(mask string, argv ...interface{}) (int, error) {
+			return logFunc("INFO", mask, argv...)
+		},
+		Debug: func(mask string, argv ...interface{}) (int, error) {
+			return logFunc("DEBUG", mask, argv...)
+		},
+		Error: func(mask string, argv ...interface{}) (int, error) {
+			return logFunc("ERROR", mask, argv...)
+		},
 	}
 }
 

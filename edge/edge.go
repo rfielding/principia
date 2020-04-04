@@ -123,13 +123,13 @@ func (e *Edge) GetFromPeer(peerName string, cmd string) ([]byte, error) {
 	url := fmt.Sprintf("https://%s%s", peerName, cmd)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		e.Logger("error creating search %s for peer: %v", url, err)
+		e.Logger.Error("error creating search %s for peer: %v", url, err)
 		return nil, err
 	}
 
 	res, err := e.HttpClient.Do(req)
 	if err != nil {
-		e.Logger("error searching peer: %v", err)
+		e.Logger.Error("error searching peer: %v", err)
 		return nil, err
 	}
 	if res.StatusCode != http.StatusOK {
@@ -175,7 +175,7 @@ func (e *Edge) Available() map[string]*Item {
 	for p, peer := range e.Peers {
 		items, err := e.AvailableFromPeer(peer)
 		if err != nil {
-			e.Logger("peer unavailable: %v", err)
+			e.Logger.Error("peer unavailable: %v", err)
 		}
 		if items == nil && time.Now().Unix() > e.Peers[p].ExpiresAt.Unix() {
 			// it's expired and we could not contact it
@@ -221,7 +221,7 @@ func (e *Edge) Available() map[string]*Item {
 }
 
 func (e *Edge) LogRet(err error, msg string, args ...interface{}) error {
-	e.Logger(msg, args)
+	e.Logger.Error(msg, args)
 	if err == nil {
 		return fmt.Errorf(fmt.Sprintf(msg, args...))
 	}
@@ -246,7 +246,7 @@ func (e *Edge) wsPrologue(host string, url string, dest_conn net.Conn) error {
 	if err != nil {
 		return e.LogRet(err, "failed to read line to %s: %v", url, err)
 	}
-	e.Logger("line: %s", line)
+	e.Logger.Info("line: %s", line)
 	lineTokens := strings.Split(string(line), " ")
 	if len(lineTokens) < 3 {
 		return e.LogRet(nil, "malformed http response: %s", line)
@@ -280,7 +280,7 @@ func (e *Edge) wsTransport(w http.ResponseWriter, r *http.Request, res *http.Res
 		client_conn, _, err := hijacker.Hijack()
 		if err != nil {
 			dest_conn.Close()
-			e.Logger("unable to get client hijack: %v", err)
+			e.Logger.Error("unable to get client hijack: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -306,7 +306,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	e.Logger("%s %s", r.Method, r.RequestURI)
+	e.Logger.Info("%s %s", r.Method, r.RequestURI)
 	wantsWebsockets := r.Header.Get("Connection") == "Upgrade" &&
 		r.Header.Get("Upgrade") == "websocket"
 	// Find local listeners - we modify the url
@@ -314,12 +314,12 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.RequestURI, "/"+lsn.Name+"/") {
 			path := "/" + r.RequestURI[2+len(lsn.Name):]
 			url := fmt.Sprintf("http://127.0.0.1:%s%s", lsn.Port, path)
-			e.Logger("listener: GET %s -> %s %s", r.RequestURI, lsn.Name, url)
+			e.Logger.Info("listener: GET %s -> %s %s", r.RequestURI, lsn.Name, url)
 			req, err := http.NewRequest(r.Method, url, r.Body)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				msg := fmt.Sprintf("Failed To Create Request: %v", err)
-				e.Logger(msg)
+				e.Logger.Error(msg)
 				w.Write([]byte(msg))
 				return
 			}
@@ -358,7 +358,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				rv := int(rand.Int31n(int32(len(volunteers))))
 				volunteer := volunteers[rv]
 				to := fmt.Sprintf("https://%s%s", volunteer, r.RequestURI)
-				e.Logger("volunteer: %s %s -> %s", r.Method, to, volunteer)
+				e.Logger.Info("volunteer: %s %s -> %s", r.Method, to, volunteer)
 				req, err := http.NewRequest(r.Method, to, r.Body)
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
@@ -418,7 +418,7 @@ func (e *Edge) Spawn(lsn Listener) error {
 	if lsn.Run.EditFn != nil {
 		lsn.Run.EditFn(&lsn)
 	}
-	e.Logger("edge.Spawn: %s", common.AsJsonPretty(lsn))
+	e.Logger.Info("edge.Spawn: %s", common.AsJsonPretty(lsn))
 	// Actually execute the command
 	if len(lsn.Run.Cmd) > 0 {
 		lsn.Run.Running = exec.Command(lsn.Run.Cmd[0], lsn.Run.Cmd[1:]...)
@@ -430,13 +430,13 @@ func (e *Edge) Spawn(lsn Listener) error {
 		go func() {
 			err := lsn.Run.Running.Run()
 			if err != nil {
-				e.Logger("failed to spawn cmd for %d: %v", lsn.Port, err)
+				e.Logger.Info("failed to spawn cmd for %d: %v", lsn.Port, err)
 			}
 		}()
 	} else {
 		if len(lsn.Run.Static) > 0 {
 			bind := fmt.Sprintf("127.0.0.1:%d", lsn.Port)
-			e.Logger("spawn static: http://%s vs %s", bind, lsn.Run.Static)
+			e.Logger.Info("spawn static: http://%s vs %s", bind, lsn.Run.Static)
 			lsn.Run.Server = &http.Server{
 				Addr:    bind,
 				Handler: http.FileServer(http.Dir(lsn.Run.Static)),
@@ -444,7 +444,7 @@ func (e *Edge) Spawn(lsn Listener) error {
 			go func() {
 				err := lsn.Run.Server.ListenAndServe()
 				if err != nil {
-					e.Logger("failed to run internal static file server for %s: %v", bind, err)
+					e.Logger.Info("failed to run internal static file server for %s: %v", bind, err)
 				}
 			}()
 		} else {
@@ -486,7 +486,7 @@ func (e *Edge) Spawn(lsn Listener) error {
 }
 
 func (e *Edge) Peer(host string, port Port) {
-	e.Logger("edge.Peer: https://%s:%d", host, port)
+	e.Logger.Info("edge.Peer: https://%s:%d", host, port)
 	e.Peers = append(e.Peers, Peer{
 		Host:      host,
 		Port:      port,
@@ -497,7 +497,7 @@ func (e *Edge) Peer(host string, port Port) {
 }
 
 func (e *Edge) Requires(listener string, port Port) error {
-	e.Logger("e.Requires: %s %d", listener, port)
+	e.Logger.Info("e.Requires: %s %d", listener, port)
 	spawned, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
 	if err != nil {
 		return err
@@ -512,7 +512,7 @@ func (e *Edge) Requires(listener string, port Port) error {
 		for {
 			src_conn, err := spawned.Accept()
 			if err != nil {
-				e.Logger("unable to spawn: %v", err)
+				e.Logger.Error("unable to spawn: %v", err)
 				continue
 			}
 			host := fmt.Sprintf("127.0.0.1:%d", e.PortInternal)
@@ -522,13 +522,13 @@ func (e *Edge) Requires(listener string, port Port) error {
 				10*time.Second,
 			)
 			if err != nil {
-				e.Logger("unable to dial sidecar: %v", err)
+				e.Logger.Error("unable to dial sidecar: %v", err)
 			}
 			err = e.wsPrologue(host, "/"+listener+"/", dest_conn)
 			if err != nil {
 				src_conn.Close()
 				dest_conn.Close()
-				e.Logger("unable to run prologue: %v", err)
+				e.Logger.Error("unable to run prologue: %v", err)
 				continue
 			}
 			go func() {
@@ -585,9 +585,7 @@ func Start(e *Edge) (*Edge, error) {
 	if e.Name == "" {
 		e.Name = fmt.Sprintf("%s:%d", e.Host, e.Port)
 	}
-	if e.Logger == nil {
-		e.Logger = common.NewLogger(fmt.Sprintf("%s", e.Name))
-	}
+	e.Logger = common.NewLogger(fmt.Sprintf("%s", e.Name))
 	e.Listeners = make([]Listener, 0)
 	e.Listeners = append(e.Listeners, Listener{
 		Bind: "127.0.0.1",
@@ -607,11 +605,11 @@ func Start(e *Edge) (*Edge, error) {
 	// Read in the cert file
 	certs, err := ioutil.ReadFile(e.TrustPath)
 	if err != nil {
-		e.Logger("Failed to append %q to RootCAs: %v", e.TrustPath, err)
+		e.Logger.Error("Failed to append %q to RootCAs: %v", e.TrustPath, err)
 		return nil, err
 	}
 	if ok := rootCAs.AppendCertsFromPEM(certs); !ok {
-		e.Logger("No certs appended, using system certs only")
+		e.Logger.Info("No certs appended, using system certs only")
 	}
 	certPem, err := ioutil.ReadFile(e.CertPath)
 	if err != nil {
@@ -651,7 +649,7 @@ func Start(e *Edge) (*Edge, error) {
 			Certificates:          []tls.Certificate{cert},
 		},
 	}
-	e.Logger("edge.Start: https://%s:%d", e.Host, e.Port)
+	e.Logger.Info("edge.Start: https://%s:%d", e.Host, e.Port)
 	go e.ExternalServer.ListenAndServeTLS(e.CertPath, e.KeyPath)
 
 	// Our internal server can use plaintext
@@ -659,7 +657,7 @@ func Start(e *Edge) (*Edge, error) {
 		Addr:    fmt.Sprintf("127.0.0.1:%d", e.PortInternal),
 		Handler: e,
 	}
-	e.Logger("edge.Start: http://127.0.0.1:%d", e.PortInternal)
+	e.Logger.Info("edge.Start: http://127.0.0.1:%d", e.PortInternal)
 	go e.InternalServer.ListenAndServe()
 
 	// Periodic poller start

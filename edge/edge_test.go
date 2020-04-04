@@ -93,7 +93,7 @@ func TestEdge(t *testing.T) {
 			HttpCheck: "/",
 		},
 	}))
-	testLogger("Available eDB:%d %s\n", eDB.Port, common.AsJsonPretty(eDB.Available()))
+	testLogger.Info("Available eDB:%d %s\n", eDB.Port, common.AsJsonPretty(eDB.Available()))
 
 	TryTest(t, eAuth.Spawn(edge.Listener{
 		Name:        "eAuth",
@@ -133,20 +133,20 @@ func TestEdge(t *testing.T) {
 	eWeb.Requires("eAuth", eAuth_port)
 
 	// Log info about it
-	testLogger("Available eAuth:%d %s\n", eAuth.Port, common.AsJsonPretty(eAuth.Available()))
-	testLogger("Available eWeb:%d %s\n", eWeb.Port, common.AsJsonPretty(eWeb.Available()))
+	testLogger.Info("Available eAuth:%d %s\n", eAuth.Port, common.AsJsonPretty(eAuth.Available()))
+	testLogger.Info("Available eWeb:%d %s\n", eWeb.Port, common.AsJsonPretty(eWeb.Available()))
 
 	eDB_eWeb_data, err := eDB.GetFromPeer(eWeb.PeerName(), "/eDB_eWeb/")
 	TryTest(t, err)
-	testLogger("Got: %s\n", eDB_eWeb_data)
+	testLogger.Info("Got: %s\n", eDB_eWeb_data)
 
 	eWeb_data, err := eWeb.GetFromPeer(eWeb.PeerName(), "/eDB_eWeb/")
 	TryTest(t, err)
-	testLogger("Got: %s\n", eWeb_data)
+	testLogger.Info("Got: %s\n", eWeb_data)
 
 	eWeb_data2, err := eWeb.GetFromPeer(eWeb.PeerName(), "/eWeb/")
 	TryTest(t, err)
-	testLogger("Got: %s\n", eWeb_data2)
+	testLogger.Info("Got: %s\n", eWeb_data2)
 	/*
 		conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", eWeb.Host, eWeb.Port), time.Duration(10*time.Second))
 		TryTest(t, err)
@@ -154,7 +154,7 @@ func TestEdge(t *testing.T) {
 		//io.Copy(os.Stdout, conn)
 		conn.Close()
 	*/
-	testLogger("https://%s/eWeb/", eWeb.PeerName())
+	testLogger.Info("https://%s/eWeb/", eWeb.PeerName())
 
 	time.Sleep(5 * time.Minute)
 }
