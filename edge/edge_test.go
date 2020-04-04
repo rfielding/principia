@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"github.com/rfielding/principia/common"
 	"github.com/rfielding/principia/edge"
+	//"io"
 	"io/ioutil"
+	//"net"
+	//"os"
 	"testing"
 	"time"
 )
@@ -55,7 +58,6 @@ func TestEdge(t *testing.T) {
 
 	// This is a proxy on 8122 to a web server on 8123, talking to db on
 	eWeb, err := edge.Start(&edge.Edge{
-		Port:      9022,
 		Host:      "localhost",
 		CertPath:  certPath,
 		KeyPath:   keyPath,
@@ -142,7 +144,14 @@ func TestEdge(t *testing.T) {
 	eWeb_data2, err := eWeb.GetFromPeer(eWeb.PeerName(), "/eWeb/")
 	TryTest(t, err)
 	fmt.Printf("Got: %s\n", eWeb_data2)
-
+	/*
+		conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", eWeb.Host, eWeb.Port), time.Duration(10*time.Second))
+		TryTest(t, err)
+		//conn.Write([]byte("GET / HTTP/1.1\n\n"))
+		//io.Copy(os.Stdout, conn)
+		conn.Close()
+	*/
 	fmt.Printf("https://%s/eWeb/", eWeb.PeerName())
+
 	time.Sleep(5 * time.Minute)
 }

@@ -1,6 +1,7 @@
 package edge
 
 import (
+	"bufio"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -82,24 +83,25 @@ type Required struct {
 // Edge is pointed to by Peer, and contains the reverse proxy to
 // spawned Listener objects
 type Edge struct {
-	Name           string
-	Host           string
-	Bind           string
-	Port           Port
-	PortInternal   Port
-	Logger         common.Logger
-	Listeners      []Listener
-	DefaultLease   time.Duration
-	Peers          []Peer
-	Required       []Required
-	CertPath       string
-	KeyPath        string
-	TrustPath      string
-	HttpClient     *http.Client
-	InternalServer http.Server
-	ExternalServer http.Server
-	LastAvailable  map[string]*Item
-	Done           chan bool
+	Name            string
+	Host            string
+	Bind            string
+	Port            Port
+	PortInternal    Port
+	Logger          common.Logger
+	Listeners       []Listener
+	DefaultLease    time.Duration
+	Peers           []Peer
+	Required        []Required
+	CertPath        string
+	KeyPath         string
+	TrustPath       string
+	HttpClient      *http.Client
+	TLSClientConfig *tls.Config
+	InternalServer  http.Server
+	ExternalServer  http.Server
+	LastAvailable   map[string]*Item
+	Done            chan bool
 }
 
 type Item struct {
@@ -217,9 +219,86 @@ func (e *Edge) Available() map[string]*Item {
 	return available
 }
 
+func (e *Edge) LogRet(err error, msg string, args ...interface{}) error {
+	e.Logger(msg, args)
+	if err == nil {
+		return fmt.Errorf(fmt.Sprintf(msg, args...))
+	}
+	return err
+}
+
+func (e *Edge) wsPrologue(host string, url string, dest_conn net.Conn) error {
+	// Perform the websocket handshake, by writing the GET request on our tunnel
+	requestLine := fmt.Sprintf("GET %s HTTP/1.1\r\n", url)
+	dest_conn.Write([]byte(requestLine))
+	hostLine := fmt.Sprintf("Host: %s\r\n", host)
+	dest_conn.Write([]byte(hostLine))
+	connectionLine := "Connection: Upgrade\r\n"
+	dest_conn.Write([]byte(connectionLine))
+	upgradeLine := "Upgrade: websocket\r\n"
+	dest_conn.Write([]byte(upgradeLine))
+	dest_conn.Write([]byte("\r\n"))
+
+	// Consume the header that comes back, and ensure that it's a 101
+	brdr := bufio.NewReader(dest_conn)
+	line, _, err := brdr.ReadLine()
+	if err != nil {
+		return e.LogRet(err, "failed to read line to %s: %v", url, err)
+	}
+	e.Logger("line: %s", line)
+	lineTokens := strings.Split(string(line), " ")
+	if len(lineTokens) < 3 {
+		return e.LogRet(nil, "malformed http response: %s", line)
+	}
+	if lineTokens[1] != "101" {
+		return e.LogRet(nil, "wrong http error code: %s %s", lineTokens[0], lineTokens[1])
+	}
+	// Read lines until an empty one or error to consume the headers
+	for {
+		hdrLine, _, err := brdr.ReadLine()
+		if err != nil {
+			return e.LogRet(nil, "error reading headers: %v", err)
+		}
+		if len(hdrLine) == 0 {
+			break
+		}
+	}
+	return nil
+}
+
+func (e *Edge) wsTransport(w http.ResponseWriter, r *http.Request, res *http.Response, dest_conn net.Conn) {
+	if r.Header.Get("Connection") == "Upgrade" &&
+		r.Header.Get("Upgrade") == "websocket" {
+		w.WriteHeader(101)
+		hijacker, ok := w.(http.Hijacker)
+		if !ok {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("Unable to upgrade to websocket"))
+			return
+		}
+		client_conn, _, err := hijacker.Hijack()
+		if err != nil {
+			dest_conn.Close()
+			e.Logger("unable to get client hijack: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		go func() {
+			defer client_conn.Close()
+			io.Copy(dest_conn, client_conn)
+		}()
+		go func() {
+			defer dest_conn.Close()
+			io.Copy(client_conn, dest_conn)
+		}()
+	} else {
+		io.Copy(w, res.Body)
+	}
+}
+
 // ServeHTTP serves up http for this service
 func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	//	e.Logger("%s %s", r.Method, r.RequestURI)
+	e.Logger("%s %s", r.Method, r.RequestURI)
 	// Find static items
 	if r.Method == "GET" {
 		if r.RequestURI == "/available" {
@@ -227,7 +306,9 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	// Find local listeners
+	wantsWebsockets := r.Header.Get("Connection") == "Upgrade" &&
+		r.Header.Get("Upgrade") == "websocket"
+	// Find local listeners - we modify the url
 	for _, lsn := range e.Listeners {
 		if strings.HasPrefix(r.RequestURI, "/"+lsn.Name+"/") {
 			path := "/" + r.RequestURI[2+len(lsn.Name):]
@@ -250,11 +331,21 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				w.Write([]byte(msg))
 				return
 			}
-			io.Copy(w, res.Body)
+			if wantsWebsockets {
+				// Plaintext to the locally bound port
+				to := fmt.Sprintf("127.0.0.1:%d", lsn.Port)
+				dest_conn, err := net.DialTimeout("tcp", to, 10*time.Second)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+				}
+				e.wsTransport(w, r, res, dest_conn)
+			} else {
+				io.Copy(w, res.Body)
+			}
 			return
 		}
 	}
-	// Search volunteers
+	// Search volunteers - leave url alone
 	// Periodic poller start
 	e.LastAvailable = e.Available()
 	available := e.LastAvailable
@@ -263,10 +354,10 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			volunteers := available[name].Volunteers
 			// Pick a random volunteer
 			if len(volunteers) > 0 {
-				ritem := int(rand.Int31n(int32(len(volunteers))))
-				item := volunteers[ritem]
-				to := fmt.Sprintf("https://%s%s", item, r.RequestURI)
-				e.Logger("volunteer: %s %s -> %s", r.Method, to, item)
+				rv := int(rand.Int31n(int32(len(volunteers))))
+				volunteer := volunteers[rv]
+				to := fmt.Sprintf("https://%s%s", volunteer, r.RequestURI)
+				e.Logger("volunteer: %s %s -> %s", r.Method, to, volunteer)
 				req, err := http.NewRequest(r.Method, to, r.Body)
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
@@ -283,7 +374,17 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					w.Write([]byte(msg))
 					return
 				}
-				io.Copy(w, res.Body)
+				if wantsWebsockets {
+					// must be TLS, and append websockets header exchange
+					dest_conn, err := tls.Dial("tcp", volunteer, e.TLSClientConfig)
+					e.wsPrologue(volunteer, r.RequestURI, dest_conn)
+					e.wsTransport(w, r, res, dest_conn)
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+					}
+				} else {
+					io.Copy(w, res.Body)
+				}
 				return
 			}
 		}
@@ -379,6 +480,39 @@ func (e *Edge) Requires(listener string, port Port) error {
 		Lsn:  spawned,
 	}
 	e.Required = append(e.Required, rq)
+	go func() {
+		for {
+			src_conn, err := spawned.Accept()
+			if err != nil {
+				e.Logger("unable to spawn: %v", err)
+				continue
+			}
+			host := fmt.Sprintf("127.0.0.1:%d", e.PortInternal)
+			dest_conn, err := net.DialTimeout(
+				"tcp",
+				host,
+				10*time.Second,
+			)
+			if err != nil {
+				e.Logger("unable to dial sidecar: %v", err)
+			}
+			err = e.wsPrologue(host, "/"+listener+"/", dest_conn)
+			if err != nil {
+				src_conn.Close()
+				dest_conn.Close()
+				e.Logger("unable to run prologue: %v", err)
+				continue
+			}
+			go func() {
+				defer dest_conn.Close()
+				io.Copy(src_conn, dest_conn)
+			}()
+			go func() {
+				defer src_conn.Close()
+				io.Copy(src_conn, dest_conn)
+			}()
+		}
+	}()
 	return nil
 }
 
@@ -424,7 +558,7 @@ func Start(e *Edge) (*Edge, error) {
 		e.Name = fmt.Sprintf("%s:%d", e.Host, e.Port)
 	}
 	if e.Logger == nil {
-		e.Logger = common.NewLogger(fmt.Sprintf("%s:%s:%d", e.Name, e.Host, e.Port))
+		e.Logger = common.NewLogger(fmt.Sprintf("%s", e.Name))
 	}
 	e.Listeners = make([]Listener, 0)
 	e.Listeners = append(e.Listeners, Listener{
@@ -465,14 +599,16 @@ func Start(e *Edge) (*Edge, error) {
 	}
 
 	// Create our client HttpConfig and transport
+	cfg := &tls.Config{
+		RootCAs:               rootCAs,
+		InsecureSkipVerify:    true, // This is not the same as skip verify, because of VerifyPeerCertificate!
+		VerifyPeerCertificate: common.VerifyPeerCertificate,
+		Certificates:          []tls.Certificate{cert},
+	}
+	e.TLSClientConfig = cfg
 	e.HttpClient = &http.Client{
 		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				RootCAs:               rootCAs,
-				InsecureSkipVerify:    true, // This is not the same as skip verify, because of VerifyPeerCertificate!
-				VerifyPeerCertificate: common.VerifyPeerCertificate,
-				Certificates:          []tls.Certificate{cert},
-			},
+			TLSClientConfig: cfg,
 		},
 	}
 
