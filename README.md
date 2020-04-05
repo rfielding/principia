@@ -37,6 +37,8 @@ As an example, every Edge (in purple) has a TLS entry point for entering through
   - It can alter env vars and parameters.
   - It can ask another edge to perform the actual launch, for location independence.
   - Edges can gossip to keep in touch about who is doing what.
+  - Everything except the TLS ports are bound to 127.0.0.1, to avoid a plaintext-service open port nightmare, and to stop people from from pushing X509 support into their services (due to being too hard to set up in the mesh).
+  - Since edges do TLS among themselves, something like Spiffe can be implemented without trouble.  Edges only talk to edges, so there is no reason to follow any complex standards.
 
 In the example, we have a web app that has two dependencies.  It can talk to them through reverse proxy when they happen to be http services (purple).  Or if they are non-http databases (ie: Postgres, MySQL, Mongo), then a tunnel port can easily be setup (yellow).  The tunnel reaches other machines _only_ over TLS.  But because there is only one TLS entry point, websockets are used to transport non-http traffic.
 
