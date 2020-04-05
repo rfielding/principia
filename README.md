@@ -17,6 +17,8 @@ rather than `kubernetes` or `docker-compose`.  Specifically, it has these goals:
 
 ![edge.png](edge.png)
 
+> Prerequisites: Have docker installed so that it does not need root to run; which is not the default on Linux.  Have Go 1.13 installed, with GOPATH setup correctly.
+
 This example resembles a simple integration test we have in package `edge`, run like this:
 ```bash
 ./build
