@@ -71,6 +71,14 @@ func TestEdge(t *testing.T) {
 	TryTest(t, err)
 	defer eAuth2.Close()
 
+	mongo, err := edge.Start(&edge.Edge{
+		CertPath:  certPath,
+		KeyPath:   keyPath,
+		TrustPath: trustPath,
+	})
+	TryTest(t, err)
+	defer mongo.Close()
+
 	eWeb, err := edge.Start(&edge.Edge{
 		Host:      "localhost",
 		CertPath:  certPath,
@@ -108,6 +116,27 @@ func TestEdge(t *testing.T) {
 	}))
 	testLogger.Info("Available eDB:%d %s", eDB.Port, common.AsJsonPretty(eDB.Available()))
 
+	TryTest(t, mongo.Spawn(edge.Listener{
+		Name: "mongo_eweb",
+		Run: edge.Command{
+			EditFn: func(lsn *edge.Listener) {
+				lsn.Run.Cmd[5] = fmt.Sprintf("127.0.0.1:%d:27017", lsn.Port)
+			},
+			Stdout: ioutil.Discard,
+			Stderr: ioutil.Discard,
+			Cmd: []string{
+				"docker",
+				"run",
+				"--name", "mongo_eweb",
+				"-p", "127.0.0.1:27017:27017",
+				"mongo",
+			},
+			Dir:       ".",
+			HttpCheck: "/",
+		},
+	}))
+	testLogger.Info("Available mongo:%s %s", mongo.Port, common.AsJsonPretty(mongo.Available()))
+
 	TryTest(t, eAuth1.Spawn(edge.Listener{
 		Name:        "eAuth",
 		PortIntoEnv: "EAUTH_PORT",
@@ -139,15 +168,19 @@ func TestEdge(t *testing.T) {
 	// Allocate an arbitrary port for the db
 	eDB_eWeb_port := edge.AllocPort()
 	eAuth_port := edge.AllocPort()
+	mongo_port := edge.AllocPort()
 	eWeb.Peer(eDB.Host, eDB.Port)
 	eWeb.Peer(eAuth1.Host, eAuth1.Port)
 	eWeb.Peer(eAuth2.Host, eAuth2.Port)
+	eWeb.Peer(mongo.Host, mongo.Port)
 	eWeb.Tunnel("eDB_eWeb", eDB_eWeb_port)
 	eWeb.Tunnel("eAuth", eAuth_port)
+	eWeb.Tunnel("mongo_eweb", mongo_port)
 
 	// Log info about it
 	testLogger.Info("Available eAuth1:%d %s", eAuth1.Port, common.AsJsonPretty(eAuth1.Available()))
 	testLogger.Info("Available eAuth2:%d %s", eAuth2.Port, common.AsJsonPretty(eAuth2.Available()))
+	testLogger.Info("Available mongo:%d %s", mongo.Port, common.AsJsonPretty(mongo.Available()))
 	testLogger.Info("Available eDB:%d %s", eDB.Port, common.AsJsonPretty(eDB.Available()))
 	testLogger.Info("Available eWeb:%d %s", eWeb.Port, common.AsJsonPretty(eWeb.Available()))
 
@@ -170,7 +203,7 @@ func TestEdge(t *testing.T) {
 		req, err := http.NewRequest("GET", url, nil)
 		TryTest(t, err)
 		cl := http.Client{}
-		testLogger.Info("GET %s", url)
+		testLogger.Info("GET %s via local websocket", url)
 		res, err := cl.Do(req)
 		TryTest(t, err)
 		data, err := ioutil.ReadAll(res.Body)
@@ -189,7 +222,7 @@ func TestEdge(t *testing.T) {
 		req, err := http.NewRequest("GET", url, nil)
 		TryTest(t, err)
 		cl := http.Client{}
-		testLogger.Info("GET %s", url)
+		testLogger.Info("GET %s via remote websocket", url)
 		res, err := cl.Do(req)
 		TryTest(t, err)
 		data, err := ioutil.ReadAll(res.Body)
