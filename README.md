@@ -75,6 +75,18 @@ eDB.Spawn(edge.Listener{
 })
 ```
 
+Here is an example of injecting the randomly chosen port into an environment variable:
+
+```go
+	TryTest(t, eAuth1.Spawn(edge.Listener{
+		Name:        "eAuth",
+		PortIntoEnv: "MYSVC_PORT", // The random port mysvc will spawn on 
+		Run: edge.Command{
+			Cmd: []string{"/usr/bin/mysvc"},
+		},
+	}))
+```
+
 > Note HttpCheck.  When the port it spawns on becomes reachable with a GET on this URL, then the spawn returns.  This eliminates the sleep tricks and complex config to do readiness probes that are common in other frameworks.
 
 When this command is running, the Edge and Sidecar will have the same http handling, only differing in the Edge TLS requirement.  This lets processes talk back to their sidecar without any certificate setup.  The sidecars will speak TLS among themselves.
