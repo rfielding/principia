@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
+	"net/http"
 	"os"
 	"testing"
 	"time"
@@ -167,22 +168,25 @@ func TestEdge(t *testing.T) {
 	// Talk to actual service for comparison
 	if true {
 		eDB_svc_name := eDB.Available()["eDB_eWeb"].Endpoint
-		testLogger.Info("tcp to raw svc %s", eDB_svc_name)
-		conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s", eDB_svc_name), time.Duration(10*time.Second))
+		req, err := http.NewRequest("GET", fmt.Sprintf("http://%s/", eDB_svc_name), nil)
 		TryTest(t, err)
-		writing := fmt.Sprintf("GET / HTTP/1.1\r\nHost: %s\r\n\r\n", eDB_svc_name)
-		conn.Write([]byte(writing))
-		testParseHttp(t, conn, testLogger)
+		cl := http.Client{}
+		res, err := cl.Do(req)
+		TryTest(t, err)
+		data, err := ioutil.ReadAll(res.Body)
+		TryTest(t, err)
+		testLogger.Info("%s", string(data))
+		res.Body.Close()
 	}
 
 	// Talk to eDB sidecar websocket... We need to tell it that we want a websocket, and specify which tunnel
 	// we are destined for.
-	if true {
+	if false {
 		eDB_svc_name := eDB.SidecarName()
 		testLogger.Info("tcp to local sidecar websocket %s", eDB_svc_name)
 		conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s", eDB_svc_name), time.Duration(10*time.Second))
 		TryTest(t, err)
-		writing := fmt.Sprintf("GET /eDB_eWeb/ HTTP/1.1\r\nHost: %s\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n", eDB_svc_name)
+		writing := fmt.Sprintf("GET /eDB_eWeb/ HTTP/1.1\r\nHost: %s\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\nGET / HTTP/1.1\r\nHost: foo\r\n\r\b", eDB_svc_name)
 		testLogger.Info("trying to write: %s", writing)
 		conn.Write([]byte(writing))
 		testParseHttp(t, conn, testLogger)
@@ -192,7 +196,7 @@ func TestEdge(t *testing.T) {
 	if false {
 		eDB_svc_name := eWeb.SidecarName()
 		testLogger.Info("tcp to remote sidecar websocket %s", eDB_svc_name)
-		conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s", eDB_svc_name), time.Duration(10*time.Second))
+		conn, err := net.DialTimeout("tcp", eDB_svc_name, time.Duration(10*time.Second))
 		TryTest(t, err)
 		conn.Write([]byte(fmt.Sprintf("GET /eDB_eWeb/ HTTP/1.1\r\nHost: %s\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n", eDB_svc_name)))
 		io.Copy(os.Stdout, conn)
@@ -202,12 +206,15 @@ func TestEdge(t *testing.T) {
 	// Talk to actual service for comparison
 	if false {
 		eDB_svc_name := eWeb.Available()["eDB_eWeb"].Endpoint
-		testLogger.Info("tcp to remote sidecar port %s", eDB_svc_name)
-		conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s", eDB_svc_name), time.Duration(10*time.Second))
+		req, err := http.NewRequest("GET", fmt.Sprintf("http://%s/", eDB_svc_name), nil)
 		TryTest(t, err)
-		conn.Write([]byte(fmt.Sprintf("GET / HTTP/1.1\r\nHost: %s\r\n\r\n", eDB_svc_name)))
-		io.Copy(os.Stdout, conn)
-		conn.Close()
+		cl := http.Client{}
+		res, err := cl.Do(req)
+		TryTest(t, err)
+		data, err := ioutil.ReadAll(res.Body)
+		TryTest(t, err)
+		testLogger.Info("%s", string(data))
+		res.Body.Close()
 	}
 
 	testLogger.Info("https://%s/eWeb/", eWeb.PeerName())

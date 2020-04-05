@@ -13,11 +13,33 @@ import (
 	"github.com/rfielding/principia/common"
 )
 
+// Put this in as a test
+func (e *Edge) Echo(w http.ResponseWriter, r *http.Request) {
+	closer, rw, err := e.wsHijack(w)
+	if err != nil {
+		w.WriteHeader(500)
+		return
+	}
+	i := 0
+	for {
+		rw.ReadLine()
+		rw.WriteString(fmt.Sprintf("%d\n", i))
+		rw.Flush()
+		time.Sleep(1 * time.Second)
+		i++
+	}
+	closer.Close()
+}
+
 // ServeHTTP serves up http for this service
 func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	logger := e.Logger.Push("ServeHTTP")
 	// Find static items
 	if r.Method == "GET" {
+		if r.RequestURI == "/echo" {
+			e.Echo(w, r)
+			return
+		}
 		if r.RequestURI == "/available" {
 			w.Write(common.AsJsonPretty(e.Available()))
 			return

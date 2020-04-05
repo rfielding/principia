@@ -12,28 +12,36 @@ import (
 	"time"
 )
 
+func (e *Edge) LogRet(w http.ResponseWriter, statusCode int, err error, msg string, args ...interface{}) error {
+	e.Logger.Error(msg, args)
+	if err == nil {
+		err = fmt.Errorf(fmt.Sprintf(msg, args...))
+	}
+	if w != nil {
+		w.WriteHeader(statusCode)
+	}
+	return err
+}
+
 func (e *Edge) wsHttps(w http.ResponseWriter, r *http.Request, addr string, url string) {
 	// Tunnel to the volunteer with a TLS cert
 	dest_conn, err := tls.Dial("tcp", addr, e.TLSClientConfig)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		e.Logger.Error("unable to dial volunteer: %v", err)
+		e.LogRet(w, http.StatusInternalServerError, err, "unable to dial volunteer: %v", err)
 		return
 	}
 	defer dest_conn.Close()
 	// If we connect successfully, do the websocket headers to our volunteer
 	err = e.wsConsumeHeaders(addr, url, dest_conn)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		e.Logger.Error("unable to setup websocket to volunteer %s: %v", addr, err)
+		e.LogRet(w, http.StatusInternalServerError, err, "unable to setup websocket to volunteer %s: %v", addr, err)
 		return
 	}
 	e.Logger.Info("prologue websocket to volunteer %s", addr)
 	// Hijack our incoming to transport the websocket across these
 	wconn, rw, err := e.wsHijack(w)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		e.Logger.Error("unable to hijack connection: %v", err)
+		e.LogRet(w, http.StatusInternalServerError, err, "unable to hijack connection: %v", err)
 		return
 	}
 	defer wconn.Close()
@@ -55,22 +63,23 @@ func (e *Edge) wsConsumeHeaders(addr string, url string, conn net.Conn) error {
 
 	// Consume the header that comes back, and ensure that it's a 101
 	brdr := bufio.NewReader(conn)
-	line, _, err := brdr.ReadLine()
+	ln, _, err := brdr.ReadLine()
+	line := string(ln)
 	if err != nil {
-		return e.LogRet(err, "failed to read line to %s: %v", url, err)
+		return e.LogRet(nil, 0, err, "failed to read line to %s: %v", url, err)
 	}
-	lineTokens := strings.Split(string(line), " ")
+	lineTokens := strings.Split(line, " ")
 	if len(lineTokens) < 3 {
-		return e.LogRet(nil, "malformed http response: %s", line)
+		return e.LogRet(nil, 0, nil, "malformed http response: %s", line)
 	}
 	if lineTokens[1] != "101" {
-		return e.LogRet(nil, "wrong http error code: %s %s", lineTokens[0], lineTokens[1])
+		return e.LogRet(nil, 0, nil, "wrong http error code: %s", line)
 	}
 	// Read lines until an empty one or error to consume the headers
 	for {
 		hdrLine, _, err := brdr.ReadLine()
 		if err != nil {
-			return e.LogRet(nil, "error reading headers: %v", err)
+			return e.LogRet(nil, 0, nil, "error reading headers: %v", err)
 		}
 		if len(hdrLine) == 0 {
 			break
@@ -87,18 +96,14 @@ func (e *Edge) wsHijack(w http.ResponseWriter) (net.Conn, *bufio.ReadWriter, err
 	if !ok {
 		return nil, nil, fmt.Errorf("Unable to upgrade to websocket")
 	}
-	//w.Header().Set("Connection", "Upgrade")
-	//w.Header().Set("Upgrade", "websocket")
-	//w.WriteHeader(101)
+	w.Header().Set("Connection", "Upgrade")
+	w.Header().Set("Upgrade", "websocket")
+	w.WriteHeader(101)
 	conn, rw, err := hijacker.Hijack()
 	if err != nil {
 		return nil, nil, fmt.Errorf("Unable to get client hijack: %v", err)
 	}
 	e.Logger.Info("connection is hijacked")
-	err = rw.Flush()
-	if err != nil {
-		e.Logger.Error("Cannot flush rw from hijacker: %v", err)
-	}
 	return conn, rw, nil
 }
 
@@ -110,9 +115,7 @@ func (e *Edge) wsTransport(up *bufio.ReadWriter, down net.Conn) {
 	go func() {
 		buf := make([]byte, 1024)
 		for {
-			e.Logger.Info("begin up read")
 			written, err := up.Read(buf)
-			e.Logger.Info("end up read %d", written)
 			if err == io.EOF {
 				up.Flush()
 				break
@@ -121,9 +124,7 @@ func (e *Edge) wsTransport(up *bufio.ReadWriter, down net.Conn) {
 				e.Logger.Error("unable to read buf up: %v", err)
 				break
 			}
-			e.Logger.Info("begin down write")
 			written, err = down.Write(buf[0:written])
-			e.Logger.Info("end down write %d", written)
 			if err != nil {
 				e.Logger.Error("unable to write buffer down: %v", err)
 			}
@@ -133,9 +134,7 @@ func (e *Edge) wsTransport(up *bufio.ReadWriter, down net.Conn) {
 	e.Logger.Info("transport underway")
 	buf := make([]byte, 1024)
 	for {
-		e.Logger.Info("begin down read")
 		written, err := down.Read(buf)
-		e.Logger.Info("end down read %d", written)
 		if err == io.EOF {
 			up.Flush()
 			break
@@ -147,12 +146,11 @@ func (e *Edge) wsTransport(up *bufio.ReadWriter, down net.Conn) {
 			e.Logger.Error("unable to read buf down: %v", err)
 			break
 		}
-		e.Logger.Info("begin up write")
 		written, err = up.Write(buf[0:written])
-		e.Logger.Info("end up write %d", written)
 		if err != nil {
 			e.Logger.Error("unable to write buffer up: %v", err)
 		}
+		up.Flush()
 	}
 	wg.Wait()
 	e.Logger.Info("transport done")

@@ -202,14 +202,6 @@ func (e *Edge) Available() map[string]*Service {
 	return available
 }
 
-func (e *Edge) LogRet(err error, msg string, args ...interface{}) error {
-	e.Logger.Error(msg, args)
-	if err == nil {
-		return fmt.Errorf(fmt.Sprintf(msg, args...))
-	}
-	return err
-}
-
 // Tells us to listen internally on a port
 func (e *Edge) Spawn(lsn Listener) error {
 	if lsn.Name == "" {
@@ -333,7 +325,7 @@ func (e *Edge) Tunnel(service string, port Port) error {
 				e.Logger.Error("unable to spawn: %v", err)
 				continue
 			}
-			go e.wsDependencyTransport(tun_conn, service)
+			e.wsDependencyTransport(tun_conn, service)
 		}
 	}()
 	return nil
