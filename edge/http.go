@@ -43,13 +43,13 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				defer dest_conn.Close()
 				// If that worked, then hijack the connection incoming
 				e.Logger.Info("transporting websocket to service %s", to)
-				src_conn, err := e.wsHijack(w)
+				src_conn, rw, err := e.wsHijack(w)
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
 				defer src_conn.Close()
-				e.wsTransport(src_conn, dest_conn)
+				e.wsTransport(rw, dest_conn)
 			} else {
 				path := "/" + r.RequestURI[2+len(lsn.Name):]
 				url := fmt.Sprintf("http://%s%s", to, path)
@@ -105,7 +105,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				if wantsWebsockets {
-					e.wsHttps(w, r, url, volunteer)
+					e.wsHttps(w, r, volunteer, url)
 				} else {
 					io.Copy(w, res.Body)
 				}
@@ -113,6 +113,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	w.WriteHeader(http.StatusNotFound)
 }
 
 func (e *Edge) GetFromPeer(peerName string, cmd string) ([]byte, error) {
