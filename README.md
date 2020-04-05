@@ -102,7 +102,7 @@ eWeb.Tunnel("eDB_eWeb", eDB_eWeb_port)
 
 The tunnel can be found on the other machine, because when we hit the endpoint `GET /available`, we get a data structure that tells us what reverse proxy prefixes (and websockets) are available in the proxy.
 
-> This is not a config file.  It is automatically generated when Edges query each other for `GET /available`.  When processes and edges, die, `/available` will change.  If multiple edges are hosting a service, then it will have multiple volunteers; which is load-balancing. 
+> This is not a config file.  It is automatically generated when Edges query each other for `GET /available`.  When processes and edges, die, `/available` will change.  If multiple edges are hosting a service, then it will have multiple volunteers; which is load-balancing.  An Endpoint is a socket that looks like the plain service with no reverse-proxying, and is the actual service if local, or over a TLS websocket if done by a volunteer.  There is no explicit config to use websockets.  These are defaults. 
 
 ```json
 {
