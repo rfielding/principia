@@ -15,6 +15,11 @@ rather than `kubernetes` or `docker-compose`.  Specifically, it has these goals:
 
 ![edge.png](edge.png)
 
+This example resembles a simple integration test we have in package `edge`, run like this:
+```bash
+./build
+```
+
 As an example, every Edge (in purple) has a TLS entry point for entering through the "front door", and a plaintext private entry point for entering through the "back door".  In the back, services think that everything is bound to 127.0.0.1.  The process is an Edge proxy on the front, and a sidecar on the back; to allow the user to maintain the illusion of isolation.
 
 In the example, we have a web app that has two dependencies.  It can talk to them through reverse proxy when they happen to be http services (purple).  Or if they are non-http databases (ie: Postgres, MySQL, Mongo), then a tunnel port can easily be setup (yellow).  The tunnel reaches other machines _only_ over TLS.  But because there is only one TLS entry point, websockets are used to transport non-http traffic.
