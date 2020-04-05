@@ -30,6 +30,14 @@ This example resembles a simple integration test we have in package `edge`, run 
 
 As an example, every Edge (in purple) has a TLS entry point for entering through the "front door", and a plaintext private entry point for entering through the "back door".  In the back, services think that everything is bound to 127.0.0.1.  The process is an Edge proxy on the front, and a sidecar on the back; to allow the user to maintain the illusion of isolation.
 
+- There is _always_ a TLS port on front of Edge.
+- There is _always_ a plaintext port on the back of it, which is the sidecar.
+- The sidecar _always_ controls launching binaries inside of it.  That way:
+  - It can respond if a process dies.
+  - It can alter env vars and parameters.
+  - It can ask another edge to perform the actual launch, for location independence.
+  - Edges can gossip to keep in touch about who is doing what.
+
 In the example, we have a web app that has two dependencies.  It can talk to them through reverse proxy when they happen to be http services (purple).  Or if they are non-http databases (ie: Postgres, MySQL, Mongo), then a tunnel port can easily be setup (yellow).  The tunnel reaches other machines _only_ over TLS.  But because there is only one TLS entry point, websockets are used to transport non-http traffic.
 
 > This is probably one of the most important features.  With tunnels, reverse proxies are somewhat redundant in the backend.  Reverse proxies are convenient for creating a single-origin illusion for the Javascript front-end.
