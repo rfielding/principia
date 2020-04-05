@@ -130,8 +130,8 @@ func TestEdge(t *testing.T) {
 	eWeb.Peer(eDB.Host, eDB.Port)
 	eWeb.Peer(eAuth1.Host, eAuth1.Port)
 	eWeb.Peer(eAuth2.Host, eAuth2.Port)
-	eWeb.Dependency("eDB_eWeb", eDB_eWeb_port)
-	eWeb.Dependency("eAuth", eAuth_port)
+	eWeb.Tunnel("eDB_eWeb", eDB_eWeb_port)
+	eWeb.Tunnel("eAuth", eAuth_port)
 
 	// Log info about it
 	testLogger.Info("Available eAuth1:%d %s", eAuth1.Port, common.AsJsonPretty(eAuth1.Available()))

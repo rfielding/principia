@@ -73,10 +73,10 @@ type Listener struct {
 	PortIntoEnv    string
 }
 
-type Dependency struct {
-	Name   string
-	Port   Port
-	Tunnel net.Listener
+type Tunnel struct {
+	Name     string
+	Port     Port
+	Listener net.Listener
 }
 
 // Edge is pointed to by Peer, and contains the reverse proxy to
@@ -91,7 +91,7 @@ type Edge struct {
 	Listeners       []Listener
 	DefaultLease    time.Duration
 	Peers           []Peer
-	Dependencies    []Dependency
+	Tunnels         []Tunnel
 	CertPath        string
 	KeyPath         string
 	TrustPath       string
@@ -147,7 +147,7 @@ func (e *Edge) Available() map[string]*Service {
 		}
 	}
 	// These exist remotely
-	for _, rq := range e.Dependencies {
+	for _, rq := range e.Tunnels {
 		available[rq.Name] = &Service{
 			Endpoint:   fmt.Sprintf("127.0.0.1:%d", rq.Port),
 			Volunteers: make([]string, 0),
@@ -165,7 +165,7 @@ func (e *Edge) Available() map[string]*Service {
 			if services != nil {
 				e.Peers[p].ExpiresAt = time.Now().Add(e.DefaultLease)
 				for kName, _ := range services {
-					for _, rq := range e.Dependencies {
+					for _, rq := range e.Tunnels {
 						if kName == rq.Name {
 							available[kName].Volunteers =
 								append(
@@ -314,21 +314,21 @@ func (e *Edge) Peer(host string, port Port) {
 	e.LastAvailable = e.Available()
 }
 
-func (e *Edge) Dependency(service string, port Port) error {
-	e.Logger.Info("e.Dependency: %s %d", service, port)
-	tunnel, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+func (e *Edge) Tunnel(service string, port Port) error {
+	e.Logger.Info("e.Tunnel: %s %d", service, port)
+	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
 	if err != nil {
 		return err
 	}
-	rq := Dependency{
-		Name:   service,
-		Port:   port,
-		Tunnel: tunnel,
+	tunnel := Tunnel{
+		Name:     service,
+		Port:     port,
+		Listener: listener,
 	}
-	e.Dependencies = append(e.Dependencies, rq)
+	e.Tunnels = append(e.Tunnels, tunnel)
 	go func() {
 		for {
-			tun_conn, err := tunnel.Accept()
+			tun_conn, err := listener.Accept()
 			if err != nil {
 				e.Logger.Error("unable to spawn: %v", err)
 				continue
@@ -340,9 +340,9 @@ func (e *Edge) Dependency(service string, port Port) error {
 }
 
 func (e *Edge) Close() error {
-	for _, rq := range e.Dependencies {
-		if rq.Tunnel != nil {
-			rq.Tunnel.Close()
+	for _, tunnel := range e.Tunnels {
+		if tunnel.Listener != nil {
+			tunnel.Listener.Close()
 		}
 	}
 	for _, lsn := range e.Listeners {
@@ -390,7 +390,7 @@ func Start(e *Edge) (*Edge, error) {
 
 	e.DefaultLease = time.Duration(30 * time.Second)
 	e.Peers = make([]Peer, 0)
-	e.Dependencies = make([]Dependency, 0)
+	e.Tunnels = make([]Tunnel, 0)
 
 	// Get the SystemCertPool, continue with an empty pool on error
 	rootCAs, _ := x509.SystemCertPool()
