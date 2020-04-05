@@ -13,7 +13,7 @@ import (
 )
 
 func (e *Edge) LogRet(w http.ResponseWriter, statusCode int, err error, msg string, args ...interface{}) error {
-	e.Logger.Error(msg, args)
+	e.Logger.Error(msg, args...)
 	if err == nil {
 		err = fmt.Errorf(fmt.Sprintf(msg, args...))
 	}
@@ -54,6 +54,9 @@ func (e *Edge) wsHttps(w http.ResponseWriter, r *http.Request, addr string, url 
 // the front of the socket.  The url is used to locate the tunnel on the other end
 // of the websocket.
 func (e *Edge) wsConsumeHeaders(addr string, url string, conn net.Conn) error {
+	if strings.HasPrefix(url, "http") {
+		return fmt.Errorf("url includes address rather than just a full path: %s", url)
+	}
 	// Perform the websocket handshake, by writing the GET request on our tunnel
 	conn.Write([]byte(fmt.Sprintf("GET %s HTTP/1.1\r\n", url)))
 	conn.Write([]byte(fmt.Sprintf("Host: %s\r\n", addr)))
@@ -131,7 +134,6 @@ func (e *Edge) wsTransport(up *bufio.ReadWriter, down net.Conn) {
 		}
 		wg.Done()
 	}()
-	e.Logger.Info("transport underway")
 	buf := make([]byte, 1024)
 	for {
 		written, err := down.Read(buf)
@@ -153,12 +155,11 @@ func (e *Edge) wsTransport(up *bufio.ReadWriter, down net.Conn) {
 		up.Flush()
 	}
 	wg.Wait()
-	e.Logger.Info("transport done")
 }
 
 // This is used from the plain TCP tunnel into the sidecar.  We must close the tunnel socket.
 // This blocks until the tunnel is done.
-func (e *Edge) wsDependencyTransport(tun_conn net.Conn, service string) {
+func (e *Edge) wsTunnelTransport(tun_conn net.Conn, service string) {
 	// Go does not have client-side hijacking, so we write the http request manually.
 	defer tun_conn.Close()
 	sidecar := e.SidecarName()
@@ -173,7 +174,8 @@ func (e *Edge) wsDependencyTransport(tun_conn net.Conn, service string) {
 	}
 	defer sidecar_conn.Close()
 	e.Logger.Info("tunnel headers websocket to sidecar %s", sidecar)
-	err = e.wsConsumeHeaders(sidecar, "/"+service+"/", sidecar_conn)
+	servicePrefix := fmt.Sprintf("/%s/", service)
+	err = e.wsConsumeHeaders(sidecar, servicePrefix, sidecar_conn)
 	if err != nil {
 		sidecar_conn.Close()
 		e.Logger.Error("tunnel unable to run websocket headers: %v", err)

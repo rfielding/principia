@@ -3,11 +3,9 @@ package edge_test
 import (
 	"bufio"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
-	"os"
 	"testing"
 	"time"
 
@@ -168,9 +166,11 @@ func TestEdge(t *testing.T) {
 	// Talk to actual service for comparison
 	if true {
 		eDB_svc_name := eDB.Available()["eDB_eWeb"].Endpoint
-		req, err := http.NewRequest("GET", fmt.Sprintf("http://%s/", eDB_svc_name), nil)
+		url := fmt.Sprintf("http://%s/", eDB_svc_name)
+		req, err := http.NewRequest("GET", url, nil)
 		TryTest(t, err)
 		cl := http.Client{}
+		testLogger.Info("GET %s", url)
 		res, err := cl.Do(req)
 		TryTest(t, err)
 		data, err := ioutil.ReadAll(res.Body)
@@ -179,36 +179,14 @@ func TestEdge(t *testing.T) {
 		res.Body.Close()
 	}
 
-	// Talk to eDB sidecar websocket... We need to tell it that we want a websocket, and specify which tunnel
-	// we are destined for.
-	if false {
-		eDB_svc_name := eDB.SidecarName()
-		testLogger.Info("tcp to local sidecar websocket %s", eDB_svc_name)
-		conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s", eDB_svc_name), time.Duration(10*time.Second))
-		TryTest(t, err)
-		writing := fmt.Sprintf("GET /eDB_eWeb/ HTTP/1.1\r\nHost: %s\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\nGET / HTTP/1.1\r\nHost: foo\r\n\r\b", eDB_svc_name)
-		testLogger.Info("trying to write: %s", writing)
-		conn.Write([]byte(writing))
-		testParseHttp(t, conn, testLogger)
-	}
-
-	// Talk to eWeb sidecar websocket... expect a websocket header back
-	if false {
-		eDB_svc_name := eWeb.SidecarName()
-		testLogger.Info("tcp to remote sidecar websocket %s", eDB_svc_name)
-		conn, err := net.DialTimeout("tcp", eDB_svc_name, time.Duration(10*time.Second))
-		TryTest(t, err)
-		conn.Write([]byte(fmt.Sprintf("GET /eDB_eWeb/ HTTP/1.1\r\nHost: %s\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n", eDB_svc_name)))
-		io.Copy(os.Stdout, conn)
-		conn.Close()
-	}
-
-	// Talk to actual service for comparison
-	if false {
+	// Talk to local Tunnel
+	if true {
 		eDB_svc_name := eWeb.Available()["eDB_eWeb"].Endpoint
-		req, err := http.NewRequest("GET", fmt.Sprintf("http://%s/", eDB_svc_name), nil)
+		url := fmt.Sprintf("http://%s/", eDB_svc_name)
+		req, err := http.NewRequest("GET", url, nil)
 		TryTest(t, err)
 		cl := http.Client{}
+		testLogger.Info("GET %s", url)
 		res, err := cl.Do(req)
 		TryTest(t, err)
 		data, err := ioutil.ReadAll(res.Body)

@@ -33,6 +33,10 @@ func (e *Edge) Echo(w http.ResponseWriter, r *http.Request) {
 
 // ServeHTTP serves up http for this service
 func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if strings.HasPrefix(r.RequestURI, "http") {
+		e.LogRet(w, http.StatusBadRequest, nil, "A requestURL must be a fully qualified path, not %s", r.RequestURI)
+		return
+	}
 	logger := e.Logger.Push("ServeHTTP")
 	// Find static items
 	if r.Method == "GET" {
@@ -51,7 +55,9 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Find local listeners - we modify the url
 	for _, lsn := range e.Listeners {
-		if strings.HasPrefix(r.RequestURI, "/"+lsn.Name+"/") {
+		expectedServicePrefix := fmt.Sprintf("/%s/", lsn.Name)
+		e.Logger.Debug("%s vs %s", r.RequestURI, expectedServicePrefix)
+		if strings.HasPrefix(r.RequestURI, expectedServicePrefix) {
 			to := fmt.Sprintf("127.0.0.1:%d", lsn.Port)
 			logger.Info("listener: GET %s -> %s %s", r.RequestURI, lsn.Name, to)
 			if wantsWebsockets {
@@ -127,7 +133,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				if wantsWebsockets {
-					e.wsHttps(w, r, volunteer, url)
+					e.wsHttps(w, r, volunteer, r.RequestURI)
 				} else {
 					io.Copy(w, res.Body)
 				}
@@ -135,7 +141,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	w.WriteHeader(http.StatusNotFound)
+	e.LogRet(w, http.StatusNotFound, nil, "could not find: %s %s, have %s", r.Method, r.RequestURI, common.AsJsonPretty(e.Available()))
 }
 
 func (e *Edge) GetFromPeer(peerName string, cmd string) ([]byte, error) {

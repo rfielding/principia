@@ -325,13 +325,16 @@ func (e *Edge) Tunnel(service string, port Port) error {
 				e.Logger.Error("unable to spawn: %v", err)
 				continue
 			}
-			e.wsDependencyTransport(tun_conn, service)
+			e.wsTunnelTransport(tun_conn, service)
 		}
 	}()
 	return nil
 }
 
 func (e *Edge) Close() error {
+	if true {
+		return nil
+	}
 	for _, tunnel := range e.Tunnels {
 		if tunnel.Listener != nil {
 			tunnel.Listener.Close()
