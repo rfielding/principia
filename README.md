@@ -147,4 +147,4 @@ We can reach this page at `/eWeb/`.
 </html>
 ```
 
-We can go to any edge, and we will get a page back, given that the edge knows about these two services.
+We can go to any edge, and we will get a page back, given that the edge knows about these two services.  In CouchDB, a `GET /` returns some versioning information in json.  So, `GET /eDB_eWeb/` is forwarded to the peer that is handling it, and ultimately sent to CouchDB with the service prefix stripped off, to send `GET /` to CouchDB.
