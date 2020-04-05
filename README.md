@@ -160,7 +160,7 @@ Clients only care that a named service they need exists. For example:
 
 - /eWeb/index.html to 8030 or 8031 reaches /index.html on 127.0.0.1:8036.  
 - If we talk to 8036, there is no need for a proxy prefix, as it is the actual service
-- When we talk to tunnels, there is no need for a prefix.  When talking to a tunnel port, it also needs no prefix.  It doesn't even need to be http.
+- When talking to a tunnel port, it also needs no prefix.  It doesn't even need to be http.
 - `GET /eAuth/tokens; Connection: Upgrade; Upgrade: websocket` to 8030 or 8031 will give a websocket to the actual service.  8038 looks like a direct connection to the service, because it uses this websocket.  
 
 If we depend on `eAuth`, then we can see that it's in here.  An Endpoint with no volunteers will be handled locally.  We can talk to the sidecar, which looks exactly like the Edge, except it is plaintext.  If there are Volunteers, then one will be chosen randomly to service the request; across a TLS socket.  For example:
