@@ -1,283 +1,143 @@
 Principia
 =========
 
-This project aims to make it easy to wire together independent web servers.  The various sidecar projects that have picked up momentum suffer from complexity.  The _SSH_ protocol seems a better model on which to build such a system.
+Principia is a project that aims to simplify the wiring of network programs
+into applications.  It tries to follow the example of `ssh` as much as possible,
+rather than `kubernetes` or `docker-compose`.  Specifically, it has these goals:
 
-- Allow web servers to run entirely isolated, where every dependency can be a pre-determined localhost-bound port.
-- Services can default to serving up plaintext localhost-bound ports.  Services should be completely spared the complexity of dealing with X509 certificates.
-- Your permission to speak to something should be the existence of a port over which to do this.
+- Reduce config as much as possible.  If config is complex, it can create more problems than it is solving.
+- Chose integration over flexibility.  Being opinionated will make it easier to do common tasks that are often possible in theory, but too hard to do in other frameworks.
+- X509 certificates are an incredible source of pain for users.  So, we want to handle securing traffic in the mesh; without onerous impositions on the user.
+- Single-binary and standalone.  This should be a utility that can be used to stand up a network of services, or to stand up an integration test.  A key thing is to make it easy to avoid port conflicts, so that services don't interfere with each other.
+- Do not rely on DNS or rely too heavily on containers.  Talking direct to peer services is what creates a lot of config; because TLS gets pushed onto the app developers and users.  Load balancing considerations get pushed onto users.
+- Instead, rely heavily on tunneling; like common `ssh` setups.  In `ssh`, it is easy to spawn a command on a remote machine, and give that command some tunnels to reach some other services.  But `ssh` doesn't do load balancing or discovery.
+- Hide load-balancing and discovery and encryption in the tunnels.  Processes only see 127.0.0.1.  They talk only to local ports.
 
-The general strategy is to mimic ssh, except:
+![edge.png](edge.png)
 
-- The primary goal is to minimize configuration.
-- Try to hide where everything is.
-- Hide the fact that things are load balanced.
-- Hide TLS completely from users.
-- Instead of port 22 speaking an app specific ssh protocol, make 22 be a way to transport web sockets
-- Instead of having to explicitly specify the ip address of destinations, have spawned ports announce what they OFFER, and web services are configured to point to what they REQUIRE.
-- Every node knows its own IP address and how it reaches nodes that it REQUIRES.
-- Similar offerings can be load-balanced as equivalent services.
-- Discovering what is offered is done by leasing out a directory entry.  When a node fails to renew its lease, it falls out of the offerings.
+As an example, every Edge (in purple) has a TLS entry point for entering through the "front door", and a plaintext private entry point for entering through the "back door".  In the back, services think that everything is bound to 127.0.0.1.  The process is an Edge proxy on the front, and a sidecar on the back; to allow the user to maintain the illusion of isolation.
 
-Every node can also be used as a reverse proxy to reach services that exist in the mesh.
+In the example, we have a web app that has two dependencies.  It can talk to them through reverse proxy when they happen to be http services (purple).  Or if they are non-http databases (ie: Postgres, MySQL, Mongo), then a tunnel port can easily be setup (yellow).  The tunnel reaches other machines _only_ over TLS.  But because there is only one TLS entry point, websockets are used to transport non-http traffic.
 
-- In addition to ssh-like functionality where there are localhost-bound ports that websocket-transport from REQUIRED to OFFERED services; it can act as a reverse proxy.
-- The reverse proxy gives a load-balanced front-end that appears as a single-site to the mesh.  This allows for Javascript static apps that consume services.
-- The reverse proxy itself has an API for registering offerings, and making config changes.
+> This is probably one of the most important features.  With tunnels, reverse proxies are somewhat redundant in the backend.  Reverse proxies are convenient for creating a single-origin illusion for the Javascript front-end.
 
-# Service Example
-
-We always launch some sidecars, that are analagous to sshd daemons.  We are running a simple example in package edge.
-
-> !!! Docker command line should not have to run as root.
-> !! We assume that tree (cli command) is installed
-
-```bash
-(cd edge && go test)
-```
-
-## The Authorization service Example
-
-Here we launch an example authorization service.  Note that when the Listener
-is spawned, the port that was chose is written into an env var `EAUTH_PORT`
-on startup.  This is how we can have a mesh where users don't deal with
-ports; and ports can be deconflicted so that we can run many instances on one
-machine.
+Like `ssh`, the daemons are all rather similar.  An Edge just needs enough information to run a TLS server for the Edge.
 
 ```go
-  eAuth, err := edge.Start(&edge.Edge{
-    Host:      "localhost",
-    CertPath:  certPath,
-    KeyPath:   keyPath,
-    TrustPath: trustPath,
-  })
-  TryTest(t, err)
-  defer eWeb.Close()
-
-  // Tell it to run a program with random port, with env var EAUTH_PORT injected
-	TryTest(t, eAuth.Spawn(edge.Listener{
-		PortIntoEnv: "EAUTH_PORT",
-		Run: edge.Command{
-			Cmd: []string{"/usr/bin/authsvr"},
-		},
-	}))
-```
-
-As a result of this, we can see that the sidecar spawned an https
-service on 0.0.0.0:8022.  Since sidecars are talking to each other,
-they can deal with the TLS setup, and we don't need to think about it.
-
-The actual authorization service runs on 127.0.0.1:8024, so that
-nothing can talk to it except the Edge process bound
-to 0.0.0.0:8022 and 127.0.0.1:8023.
-
-```json
-//Available eAuth:8022
-{
-  "eAuth": {
-    "Endpoint": "127.0.0.1:8024"
-  },
-  "sidecarInternal": {
-    "Endpoint": "127.0.0.1:8023"
-  }
-}
-```
-
-- `eAuth` is where we can talk to the command, over whatever TCP protocol
-  it speaks.
-- `sidecarInternal` is a standardized name for an http handler that has the
-  same endpoints as the TLS enabled external port `0.0.0.0:8022`.  This way,
-  the internal service just speaks plaintext http to the sidecar, even
-  though external clients coming in via 8022 need to use TLS.  The internal
-  port may also expose some more sensitive endpoints than are reachable remotely.
-
-## Database Example
-
-This database may speak any protocol, such as Mongo, Postgres, etc.  All that
-matters is that it is launched on a port that our Edge chose and injected
-into the service.  It is nearly identical conceptually.  The code to launch
-is the same information as for the auth server, which is the same information
-that needs to be given to an ssh command to spawn into a remote sshd.
-
-```json
-// Available eDB:8028
-{
-  "eDB_eWeb": {
-    "Endpoint": "127.0.0.1:8030"
-  },
-  "sidecarInternal": {
-    "Endpoint": "127.0.0.1:8029"
-  }
-}
-```
-
-## Web Server
-
-And here we have something less trivial.  
-We have an app that has actual dependencies.
-
-First we start the edge process.  It's pretty much the same as the others.
-
-```go
-// This is a proxy on 8122 to a web server on 8123, talking to db on
-eWeb, err := edge.Start(&edge.Edge{
-  Name:      "eWeb",
+// This is a sidecar for a database on random port
+eDB, err := edge.Start(&edge.Edge{
   CertPath:  certPath,
   KeyPath:   keyPath,
   TrustPath: trustPath,
 })
-TryTest(t, err)
-defer eWeb.Close()
-
 ```
 
-But here, we plan on having ports match up when we spawn our listener.
-So we have a listener that allows us to specifically inject config
-dependency.  In this case, we need to Spawn a listener and its
-port is plugged into `EWEB_PORT` before the command is actually run.
+Once this edge exists, we can spawn commands in it, very much like `ssh`.  In this example, we are:
 
-We also need to come up with a local `EDB_PORT` and `EAUTH_PORT` for
-services that we depend on.  These are 127.0.0.1 bound ports, and
-are not the same ports as used by actual services.
+- Spawning a process and naming it so that a reverse proxy of `/eDB_eWeb/` can reach it.
+- When it runs, it will pick a port for the spawn if we do not specify it.
+- The port will be bound to a listener socket.
+- We can inject the chosen port into the command-launch with a few methods (environment vars, parameter overwrite, etc)
 
 ```go
-// Allocate an arbitrary port for the db
-eDB_eWeb_port := edge.AllocPort()
-eAuth_port := edge.AllocPort()
-
-// Spawn the web server talking to the db
-TryTest(t, eWeb.Spawn(edge.Listener{
-  Expose:      true,
-  PortIntoEnv: "EWEB_PORT",
+eDB.Spawn(edge.Listener{
+  Name: "eDB_eWeb", // an eDB instance, with a schema for eWeb
   Run: edge.Command{
-    Cmd: []string{"/usr/bin/eWeb"},
-    Env: []string{
-      "EDB_PORT", eDB_eWeb_port.String(),
-      "EAUTH_PORT", eAuth_port.String(),
+    EditFn: func(lsn *edge.Listener) {
+      // This is how we let our randomly assigned port override the one in the command
+      lsn.Run.Cmd[5] = fmt.Sprintf("127.0.0.1:%d:5984", lsn.Port)
     },
+    Stdout: ioutil.Discard,
+    Stderr: ioutil.Discard,
+    Cmd: []string{
+      "docker",
+      "run",
+      "--name", "eDB",
+      "-p", "127.0.0.1:5984:5984",
+      "-e", "COUCHDB_USER=admin",
+      "-e", "COUCHDB_PASSWORD=password",
+      "couchdb",
+    },
+    Dir:       ".",
+    HttpCheck: "/",
   },
-}))
+})
 ```
 
-This is the magic that allows this to work.  We tell all Edges about
-each other in dependency order that they need.  In the future, gossip
-about who is where may allow everyone to know about everyone else.
+> Note HttpCheck.  When the port it spawns on becomes reachable with a GET on this URL, then the spawn returns.  This eliminates the sleep tricks and complex config to do readiness probes that are common in other frameworks.
 
-What is important is that if we require a service, we need a local
-port to talk to it (in plaintext).  Services match and load balance
-by name.  So if we talk to local `eAuth` service port, we speak plaintext
-to it.  The Edges will transport among themselves a TLS tunnel.
+When this command is running, the Edge and Sidecar will have the same http handling, only differing in the Edge TLS requirement.  This lets processes talk back to their sidecar without any certificate setup.  The sidecars will speak TLS among themselves.
 
-Because we don't use DNS to try to wire apps together, we just speak to one
-port only.  There is no TLS config, and we speak plaintext.  Note
-that we have an `eAuth` and an `eAuth2` object.  The TCP port
-`eAuth_port` will randomly load balance between them.  But our client
-code can't tell.  It just talks to a single hardcoded port as plaintext.
+- If multiple Edges Spawn things with the same name, then load-balancing will be done automatically.
+- When a spawn dies, it will eventually fall out of the list of Volunteers to handle the load balance.
+
+Another example of a spawn is a static web server.
 
 ```go
+// Launch a static web server.  We don't need a container for this.
+eWeb.Spawn(edge.Listener{
+  Name:   "eWeb",
+  Expose: true,
+  Run: edge.Command{
+    Static:    ".",
+    HttpCheck: "/",
+  },
+})
+```
+
+This web server will have a dependency on a database.  If the database isn't http, it will need to have a tunnel.
+
+```go
+// We point to peers, so that we can make TLS connections to find out what is available
 eWeb.Peer(eDB.Host, eDB.Port)
-eWeb.Peer(eAuth.Host, eAuth.Port)
-eWeb.Peer(eAuth2.Host, eAuth.Port)
-eWeb.Requires("eDB_eWeb", eDB_eWeb_port)
-eWeb.Requires("eAuth", eAuth_port)
+eWeb.Tunnel("eDB_eWeb", eDB_eWeb_port)
 ```
 
-In the output, we can see the effects.  `eWeb` needs to ask
-peers what is available.  
-
-```json
-// eDB_eWeb:127.0.0.1:8028: GET /available
-// eAuth:127.0.0.1:8022: GET /available
-// eAuth:127.0.0.1:8022: GET /available
-// Available eWeb:8031
-```
-
-A service that is `Expose` can be reached via https reverse proxy from the
-outside.  A service that has volunteers means that it's not actually
-running on this edge, but will do a reverse proxy URL to a randomly
-chosen volunteer.  The service need not even be http, because it will
-use a WebSocket.
-
+The tunnel can be found on the other machine, because when we hit the endpoint `GET /available`, we get a data structure that tells us what reverse proxy prefixes (and websockets) are available in the proxy.
 
 ```json
 {
   "eAuth": {
-    "Endpoint": "127.0.0.1:8034",
+    "Endpoint": "127.0.0.1:8038",
     "Volunteers": [
-      "127.0.0.1:8022",
-      "127.0.0.1:8022"
+      "127.0.0.1:8024",
+      "127.0.0.1:8026"
     ]
   },
   "eDB_eWeb": {
-    "Endpoint": "127.0.0.1:8033",
+    "Endpoint": "127.0.0.1:8037",
+    "Volunteers": [
+      "127.0.0.1:8022"
+    ]
+  },
+  "eWeb": {
+    "Endpoint": "127.0.0.1:8036",
+    "Expose": true
+  },
+  "mongo_eweb": {
+    "Endpoint": "127.0.0.1:8039",
     "Volunteers": [
       "127.0.0.1:8028"
     ]
   },
-  "eWeb": {
-    "Endpoint": "127.0.0.1:8035",
-    "Expose": true
-  },
   "sidecarInternal": {
-    "Endpoint": "127.0.0.1:8032"
+    "Endpoint": "127.0.0.1:8031"
   }
 }
 ```
 
-We can see that reverse proxy url prefixes are setup for us.
-If we ask for `/eWeb/hello`, we are asking `eWeb` to service `GET /hello`
-for us.  Whether it's implemented on this Edge, or on a remote Volunteer
-does not matter.  It will look the same to the caller.
+Clients only care that a named service they needs exists.  If we depend on `eAuth`, then we can see that it's in here.  An Endpoint with no volunteers will be handled locally.  We can talk to the sidecar, which looks exactly like the Edge, except it is plaintext.  If there are Volunteers, then one will be chosen randomly to service the request; across a TLS socket.  For example:
 
-```json
-// eWeb:127.0.0.1:8031: GET /eWeb/hello
-// eWeb:127.0.0.1:8031: GET /eWeb/hello -> eWeb 8035 /hello
-//  
-// eWeb:127.0.0.1:8031: GET /eDB_eWeb/hello
-// eDB_eWeb:127.0.0.1:8028: GET /available
-// eAuth:127.0.0.1:8022: GET /available
-// eAuth:127.0.0.1:8022: GET /available
-// eWeb:127.0.0.1:8031: GET /eDB_eWeb/hello -> 127.0.0.1:8028 /eDB_eWeb/hello
+We can reach this page at `/eWeb/`.
+
+```html
+<html>
+  <head>Testing</head>
+  <body>
+    It works!
+    <a href=/eDB_eWeb/>Try this!</a>
+  </body>
+</html>
 ```
 
-Local Ports
-===========
-
-The point of talking to local ports is to:
-
-- keep services from having to track changes to participating dependents (remote endpoints)
-- keep services from needing a TLS config to speak to the other end, as all TLS is done transparently between edges; similar to sshd port 0.0.0.0:22.
-- hide load balancing.  these ports are always up, and will send to an arbitrary service that meets the requirements.
-- Since everything tunnels over WebSockets, http authentication and authorization mechanisms can be used (JWT), even over protocols (such as mongo) that have no idea that http exists.
-- Use Spiffe certificates internally, but users never see it at all.
-
-Give that the app knows about the API, it can inspect what is available; to programmatically handle finding its dependencies.  If it cannot do this, then the dependencies would need to be hard-coded endpoints.
-
-The api would be what we talk locally with, while the edge is the only entry point from a remote machine.  They might have the same handlers.
-
-The Edge (analagous to Data Plane)
-=========
-
-- The only ports that are network-exposed are edge.  These are analagous to the port 22 in sshd.
-- The edge serves up static content
-- The edge serves up APIs for Javascript consumption
-- Uses an ACME certificate.
-
-The API (analagous to Control Plane)
-========
-
-- A superset of handlers that show up in the edge
-- Includes private APIs that cannot be exposed at the edge
-- Allow for the registration of OFFERED endpoints, similar to Envoy cluster.
-- Can register REQUIRED ports, similar to Envoy listener.
-- REQUIRED ports will load balance to all OFFERED ports, which may be remote or local; and randomly chosen from what is available.
-
-Containers
-==========
-
-The plan for containers is to just allow for full use of raw docker commands.
-Features needed to create correct command-lines will need to be implemented.
-A mix of local binary commands, docker commands, and some Edge internal handlers (like static Web Servers) should be very easy to mix together.
-The point of this is to have a simple framework for integration testing a log of stuff together.
-It should be easy to split across machines.  Currently in docker, this is often challenging to do without complicated wrappers around docker;
-and usually it is not easy to fold in non-containerized commands
+We can go to any edge, and we will get a page back, given that the edge knows about these two services.
