@@ -14,8 +14,8 @@ rather than `kubernetes` or `docker-compose`.  Specifically, it has these goals:
 - Do not rely on DNS or rely too heavily on containers.  Talking direct to peer services is what creates a lot of config; because TLS gets pushed onto the app developers and users.  Load balancing considerations get pushed onto users.
 - Instead, rely heavily on tunneling; like common `ssh` setups.  In `ssh`, it is easy to spawn a command on a remote machine, and give that command some tunnels to reach some other services.  But `ssh` doesn't do load balancing or discovery.
 - Hide load-balancing and discovery and encryption in the tunnels.  Processes only see 127.0.0.1.  They talk only to local ports.
+- Rely on a no-install single binary.  Instead of writing XML, Yaml, or Json configs; just require that Go SDK is installed and `go run main.go` on a file.  The library uses structs so that most of it looks like Json, but being a real language, you won't need to resort to tricks in templates.  Go is suitable as a config scripting language for doing dependency-injection and setup.
 
-![edge.png](edge.png)
 
 > Prerequisites: Have docker installed so that it does not need root to run; which is not the default on Linux.  Have Go 1.13 installed, with GOPATH setup correctly.
 
@@ -23,6 +23,10 @@ This example resembles a simple integration test we have in package `edge`, run 
 ```bash
 ./build
 ```
+
+![edge.png](edge.png)
+
+> Round circles are TCP ports.  Red is TLS.  Purple is the actual binary with sidecar.  Yellow are spawned processes and tunnel ports.
 
 As an example, every Edge (in purple) has a TLS entry point for entering through the "front door", and a plaintext private entry point for entering through the "back door".  In the back, services think that everything is bound to 127.0.0.1.  The process is an Edge proxy on the front, and a sidecar on the back; to allow the user to maintain the illusion of isolation.
 
