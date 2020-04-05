@@ -177,6 +177,9 @@ func TestEdge(t *testing.T) {
 		TryTest(t, err)
 		testLogger.Info("%s", string(data))
 		res.Body.Close()
+		if res.StatusCode != http.StatusOK {
+			t.FailNow()
+		}
 	}
 
 	// Talk to local Tunnel
@@ -193,6 +196,9 @@ func TestEdge(t *testing.T) {
 		TryTest(t, err)
 		testLogger.Info("%s", string(data))
 		res.Body.Close()
+		if res.StatusCode != http.StatusOK {
+			t.FailNow()
+		}
 	}
 
 	testLogger.Info("https://%s/eWeb/", eWeb.PeerName())

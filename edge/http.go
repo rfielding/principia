@@ -51,15 +51,14 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	wantsWebsockets := r.Header.Get("Connection") == "Upgrade" &&
 		r.Header.Get("Upgrade") == "websocket"
-	logger.Info("%s %s wantsWebsockets=%t", r.Method, r.RequestURI, wantsWebsockets)
+	logger.Debug("%s %s wantsWebsockets=%t", r.Method, r.RequestURI, wantsWebsockets)
 
 	// Find local listeners - we modify the url
 	for _, lsn := range e.Listeners {
 		expectedServicePrefix := fmt.Sprintf("/%s/", lsn.Name)
-		e.Logger.Debug("%s vs %s", r.RequestURI, expectedServicePrefix)
 		if strings.HasPrefix(r.RequestURI, expectedServicePrefix) {
 			to := fmt.Sprintf("127.0.0.1:%d", lsn.Port)
-			logger.Info("listener: GET %s -> %s %s", r.RequestURI, lsn.Name, to)
+			logger.Debug("listener: GET %s -> %s %s", r.RequestURI, lsn.Name, to)
 			if wantsWebsockets {
 				// Dial the destination in plaintext, with no websocket headers
 				dest_conn, err := net.DialTimeout("tcp", to, 10*time.Second)
@@ -70,7 +69,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 				defer dest_conn.Close()
 				// If that worked, then hijack the connection incoming
-				e.Logger.Info("transporting websocket to service %s", to)
+				e.Logger.Debug("transporting websocket to service %s", to)
 				src_conn, rw, err := e.wsHijack(w)
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
@@ -115,7 +114,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				rv := int(rand.Int31n(int32(len(volunteers))))
 				volunteer := volunteers[rv]
 				url := fmt.Sprintf("https://%s%s", volunteer, r.RequestURI)
-				logger.Info("volunteer: %s %s -> %s", r.Method, url, volunteer)
+				logger.Debug("volunteer: %s %s -> %s", r.Method, url, volunteer)
 				req, err := http.NewRequest(r.Method, url, r.Body)
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)

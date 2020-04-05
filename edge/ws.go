@@ -37,7 +37,7 @@ func (e *Edge) wsHttps(w http.ResponseWriter, r *http.Request, addr string, url 
 		e.LogRet(w, http.StatusInternalServerError, err, "unable to setup websocket to volunteer %s: %v", addr, err)
 		return
 	}
-	e.Logger.Info("prologue websocket to volunteer %s", addr)
+	e.Logger.Debug("tunnel websocket to volunteer %s", addr)
 	// Hijack our incoming to transport the websocket across these
 	wconn, rw, err := e.wsHijack(w)
 	if err != nil {
@@ -45,7 +45,7 @@ func (e *Edge) wsHttps(w http.ResponseWriter, r *http.Request, addr string, url 
 		return
 	}
 	defer wconn.Close()
-	e.Logger.Info("transport websocket to volunteer: %s", addr)
+	e.Logger.Debug("transport websocket to volunteer: %s", addr)
 	e.wsTransport(rw, dest_conn)
 }
 
@@ -106,7 +106,7 @@ func (e *Edge) wsHijack(w http.ResponseWriter) (net.Conn, *bufio.ReadWriter, err
 	if err != nil {
 		return nil, nil, fmt.Errorf("Unable to get client hijack: %v", err)
 	}
-	e.Logger.Info("connection is hijacked")
+	e.Logger.Debug("connection is hijacked")
 	return conn, rw, nil
 }
 
@@ -173,7 +173,7 @@ func (e *Edge) wsTunnelTransport(tun_conn net.Conn, service string) {
 		return
 	}
 	defer sidecar_conn.Close()
-	e.Logger.Info("tunnel headers websocket to sidecar %s", sidecar)
+	e.Logger.Debug("tunnel headers websocket to sidecar %s", sidecar)
 	servicePrefix := fmt.Sprintf("/%s/", service)
 	err = e.wsConsumeHeaders(sidecar, servicePrefix, sidecar_conn)
 	if err != nil {
@@ -182,7 +182,7 @@ func (e *Edge) wsTunnelTransport(tun_conn net.Conn, service string) {
 		return
 	}
 
-	e.Logger.Info("tunnel consuming websocket to sidecar %s", sidecar)
+	e.Logger.Debug("tunnel consuming websocket to sidecar %s", sidecar)
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
@@ -191,5 +191,5 @@ func (e *Edge) wsTunnelTransport(tun_conn net.Conn, service string) {
 	}()
 	io.Copy(sidecar_conn, tun_conn)
 	wg.Wait()
-	e.Logger.Info("tunnel consumed websocket to sidecar %s", sidecar)
+	e.Logger.Debug("tunnel consumed websocket to sidecar %s", sidecar)
 }
