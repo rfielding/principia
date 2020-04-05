@@ -80,7 +80,11 @@ Here is an example of injecting the randomly chosen port into an environment var
 ```go
 	TryTest(t, eAuth1.Spawn(edge.Listener{
 		Name:        "eAuth",
-		PortIntoEnv: "MYSVC_PORT", // The random port mysvc will spawn on 
+                // When mysvc was spawned, Port was set.  
+                // Assign to this env var for mysvc to launch on that port.
+                // This is the opposite of how most frameworks do it.
+                // The sidecar makes up a port, and launches the command with it injected. 
+		PortIntoEnv: "MYSVC_PORT", 
 		Run: edge.Command{
 			Cmd: []string{"/usr/bin/mysvc"},
 		},
