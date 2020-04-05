@@ -1,6 +1,8 @@
 Principia
 =========
 
+![diagram.gif](diagram.gif)
+
 Principia is a project that aims to simplify the wiring of network programs
 into applications.  It tries to follow the example of `ssh` as much as possible,
 rather than `kubernetes` or `docker-compose`.  Specifically, it has these goals:
