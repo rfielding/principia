@@ -102,6 +102,8 @@ eWeb.Tunnel("eDB_eWeb", eDB_eWeb_port)
 
 The tunnel can be found on the other machine, because when we hit the endpoint `GET /available`, we get a data structure that tells us what reverse proxy prefixes (and websockets) are available in the proxy.
 
+> This is not a config file.  It is automatically generated when Edges query each other for `GET /available`.  When processes and edges, die, `/available` will change.  If multiple edges are hosting a service, then it will have multiple volunteers; which is load-balancing. 
+
 ```json
 {
   "eAuth": {
@@ -133,7 +135,7 @@ The tunnel can be found on the other machine, because when we hit the endpoint `
 }
 ```
 
-Clients only care that a named service they needs exists.  If we depend on `eAuth`, then we can see that it's in here.  An Endpoint with no volunteers will be handled locally.  We can talk to the sidecar, which looks exactly like the Edge, except it is plaintext.  If there are Volunteers, then one will be chosen randomly to service the request; across a TLS socket.  For example:
+Clients only care that a named service they need exists.  If we depend on `eAuth`, then we can see that it's in here.  An Endpoint with no volunteers will be handled locally.  We can talk to the sidecar, which looks exactly like the Edge, except it is plaintext.  If there are Volunteers, then one will be chosen randomly to service the request; across a TLS socket.  For example:
 
 We can reach this page at `/eWeb/`.
 
