@@ -86,7 +86,7 @@ type Edge struct {
 	Host            string
 	Bind            string
 	Port            Port
-	PortInternal    Port
+	PortSidecar     Port
 	Logger          common.Logger
 	Listeners       []Listener
 	DefaultLease    time.Duration
@@ -118,7 +118,7 @@ func (e *Edge) PeerName() string {
 }
 
 func (e *Edge) SidecarName() string {
-	return fmt.Sprintf("127.0.0.1:%d", e.PortInternal)
+	return fmt.Sprintf("127.0.0.1:%d", e.PortSidecar)
 }
 
 func (e *Edge) AvailableFromPeer(peer Peer) (map[string]*Service, error) {
@@ -366,10 +366,10 @@ func Start(e *Edge) (*Edge, error) {
 	if e.Port == 0 {
 		e.Port = AllocPort()
 	}
-	// e.PortInternal is a plaintext port localhost only
+	// a plaintext port localhost only
 	//- runs our public handler with private handling as well
-	if e.PortInternal == 0 {
-		e.PortInternal = AllocPort()
+	if e.PortSidecar == 0 {
+		e.PortSidecar = AllocPort()
 	}
 	if e.Host == "" {
 		e.Host = "127.0.0.1"
@@ -384,7 +384,7 @@ func Start(e *Edge) (*Edge, error) {
 	e.Listeners = make([]Listener, 0)
 	e.Listeners = append(e.Listeners, Listener{
 		Bind: "127.0.0.1",
-		Port: e.PortInternal,
+		Port: e.PortSidecar,
 		Name: "sidecarInternal",
 	})
 
@@ -449,10 +449,10 @@ func Start(e *Edge) (*Edge, error) {
 
 	// Our internal server can use plaintext
 	e.InternalServer = http.Server{
-		Addr:    fmt.Sprintf("127.0.0.1:%d", e.PortInternal),
+		Addr:    fmt.Sprintf("127.0.0.1:%d", e.PortSidecar),
 		Handler: e,
 	}
-	e.Logger.Info("edge.Start: http://127.0.0.1:%d", e.PortInternal)
+	e.Logger.Info("edge.Start: http://127.0.0.1:%d", e.PortSidecar)
 	go e.InternalServer.ListenAndServe()
 
 	// Periodic poller start
