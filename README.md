@@ -17,7 +17,7 @@ rather than `kubernetes` or `docker-compose`.  Specifically, it has these goals:
 - Rely on a no-install single binary.  Instead of writing XML, Yaml, or Json configs; just require that Go SDK is installed and `go run main.go` on a file.  The library uses structs so that most of it looks like Json, but being a real language, you won't need to resort to tricks in templates.  Go is suitable as a config scripting language for doing dependency-injection and setup.
 
 
-> Prerequisites: Have docker installed so that it does not need root to run; which is not the default on Linux.  Have Go 1.13 installed, with GOPATH setup correctly.
+> Prerequisites: Have docker installed so that it does not need root to run; which is not the default on Linux.  Have Go 1.13 installed, with GOPATH setup correctly. The integration test runs the Unix `tree` command, so install that.
 
 This example resembles a simple integration test we have in package `edge`, run like this:
 ```bash
