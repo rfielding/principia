@@ -251,7 +251,7 @@ Tests
 
 In edge/edge_test.go, we have a test that gets run by `./build`.  Here is a listing of it, annotated to show what is going on:
 
-Here you can see that we are just stopping mongo_eweb and eDB containers launched, because under Linux, exec processes don't die with their parent.  _Notes to file an dissue_.
+Here you can see that we are just stopping mongo_eweb and eDB containers launched, because under Linux, exec processes don't die with their parent.  _Notes to file and issue_.
 
 ```
 mongo_eweb
