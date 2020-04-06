@@ -58,42 +58,47 @@ func TestEdge(t *testing.T) {
 
 	// This is a sidecar for a database on random port
 	eDB, err := edge.Start(&edge.Edge{
-		CertPath:  certPath,
-		KeyPath:   keyPath,
-		TrustPath: trustPath,
+		CertPath:    certPath,
+		KeyPath:     keyPath,
+		TrustPath:   trustPath,
+		BindSidecar: "0.0.0.0",
 	})
 	TryTest(t, err)
 	defer eDB.Close()
 
 	eAuth1, err := edge.Start(&edge.Edge{
-		CertPath:  certPath,
-		KeyPath:   keyPath,
-		TrustPath: trustPath,
+		CertPath:    certPath,
+		KeyPath:     keyPath,
+		TrustPath:   trustPath,
+		BindSidecar: "0.0.0.0",
 	})
 	TryTest(t, err)
 	defer eAuth1.Close()
 
 	eAuth2, err := edge.Start(&edge.Edge{
-		CertPath:  certPath,
-		KeyPath:   keyPath,
-		TrustPath: trustPath,
+		CertPath:    certPath,
+		KeyPath:     keyPath,
+		TrustPath:   trustPath,
+		BindSidecar: "0.0.0.0",
 	})
 	TryTest(t, err)
 	defer eAuth2.Close()
 
 	mongo, err := edge.Start(&edge.Edge{
-		CertPath:  certPath,
-		KeyPath:   keyPath,
-		TrustPath: trustPath,
+		CertPath:    certPath,
+		KeyPath:     keyPath,
+		TrustPath:   trustPath,
+		BindSidecar: "0.0.0.0",
 	})
 	TryTest(t, err)
 	defer mongo.Close()
 
 	eWeb, err := edge.Start(&edge.Edge{
-		Host:      "localhost",
-		CertPath:  certPath,
-		KeyPath:   keyPath,
-		TrustPath: trustPath,
+		Host:        "localhost",
+		CertPath:    certPath,
+		KeyPath:     keyPath,
+		TrustPath:   trustPath,
+		BindSidecar: "0.0.0.0",
 	})
 	TryTest(t, err)
 	defer eWeb.Close()
