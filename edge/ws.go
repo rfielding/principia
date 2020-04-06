@@ -35,14 +35,14 @@ func (e *Edge) wsHttps(w http.ResponseWriter, r *http.Request, addr string, url 
 	}
 	defer dest_conn.Close()
 	// If we connect successfully, do the websocket headers to our volunteer
-	err = e.wsConsumeHeaders(addr, url, dest_conn)
+	secKey, err := e.wsConsumeHeaders(addr, url, dest_conn)
 	if err != nil {
 		e.LogRet(w, http.StatusInternalServerError, err, "unable to setup websocket to volunteer %s: %v", addr, err)
 		return
 	}
 	e.Logger.Debug("tunnel websocket to volunteer %s", addr)
 	// Hijack our incoming to transport the websocket across these
-	wconn, rw, err := e.wsHijack(w, r)
+	wconn, rw, err := e.wsHijack(w, r, secKey)
 	if err != nil {
 		e.LogRet(w, http.StatusInternalServerError, err, "unable to hijack connection: %v", err)
 		return
@@ -69,16 +69,18 @@ func WsSecWebSocketAccept(key string) string {
 // which could be TLS or plaintext.  It strips the websocket headers off
 // the front of the socket.  The url is used to locate the tunnel on the other end
 // of the websocket.
-func (e *Edge) wsConsumeHeaders(addr string, url string, conn net.Conn) error {
+func (e *Edge) wsConsumeHeaders(addr string, url string, conn net.Conn) (string, error) {
+	socketKey := WsSecWebSocketKey()
+	secAccept := WsSecWebSocketAccept(socketKey)
 	if strings.HasPrefix(url, "http") {
-		return fmt.Errorf("url includes address rather than just a full path: %s", url)
+		return socketKey, fmt.Errorf("url includes address rather than just a full path: %s", url)
 	}
 	// Perform the websocket handshake, by writing the GET request on our tunnel
 	conn.Write([]byte(fmt.Sprintf("GET %s HTTP/1.1\r\n", url)))
 	conn.Write([]byte(fmt.Sprintf("Host: %s\r\n", addr)))
 	conn.Write([]byte("Connection: Upgrade\r\n"))
 	conn.Write([]byte("Upgrade: websocket\r\n"))
-	conn.Write([]byte(fmt.Sprintf("Sec-WebSocket-Key: %s\r\n", WsSecWebSocketKey())))
+	conn.Write([]byte(fmt.Sprintf("Sec-WebSocket-Key: %s\r\n", socketKey)))
 	conn.Write([]byte("Sec-WebSocket-Protocol: chat, superchat\r\n"))
 	conn.Write([]byte("Sec-WebSocket-Version: 13\r\n"))
 	conn.Write([]byte("\r\n"))
@@ -88,41 +90,50 @@ func (e *Edge) wsConsumeHeaders(addr string, url string, conn net.Conn) error {
 	ln, _, err := brdr.ReadLine()
 	line := string(ln)
 	if err != nil {
-		return e.LogRet(nil, 0, err, "failed to read line to %s: %v", url, err)
+		return socketKey, e.LogRet(nil, 0, err, "failed to read line to %s: %v", url, err)
 	}
 	lineTokens := strings.Split(line, " ")
 	if len(lineTokens) < 3 {
-		return e.LogRet(nil, 0, nil, "malformed http response: %s", line)
+		return socketKey, e.LogRet(nil, 0, nil, "malformed http response: %s", line)
 	}
 	if lineTokens[1] != "101" {
-		return e.LogRet(nil, 0, nil, "wrong http error code: %s", line)
+		return socketKey, e.LogRet(nil, 0, nil, "wrong http error code: %s", line)
 	}
 	// Read lines until an empty one or error to consume the headers
 	for {
 		hdrLine, _, err := brdr.ReadLine()
 		if err != nil {
-			return e.LogRet(nil, 0, nil, "error reading headers: %v", err)
+			return socketKey, e.LogRet(nil, 0, nil, "error reading headers: %v", err)
 		}
 		if len(hdrLine) == 0 {
 			break
 		}
+		tokens := strings.Split(string(hdrLine), ":")
+		if len(tokens) > 2 {
+			if strings.EqualFold(tokens[0], "Sec-WebSocket-Accept") {
+				if secAccept != strings.TrimSpace(tokens[1]) {
+					return socketKey, e.LogRet(nil, 0, nil, fmt.Sprintf("Sec-WebSocket-Accept wrong value: %s", secAccept))
+				}
+			}
+		}
 	}
-	return nil
+	return socketKey, nil
 }
 
 // wsHijack should be called when we have header values set, and are
 // ready to switch to a TCP socket
-func (e *Edge) wsHijack(w http.ResponseWriter, r *http.Request) (net.Conn, *bufio.ReadWriter, error) {
+func (e *Edge) wsHijack(w http.ResponseWriter, r *http.Request, wsKey string) (net.Conn, *bufio.ReadWriter, error) {
 	// Steal the writer body as a 2way socket
 	hijacker, ok := w.(http.Hijacker)
 	if !ok {
 		return nil, nil, fmt.Errorf("Unable to upgrade to websocket")
 	}
+	secAccept := WsSecWebSocketAccept(wsKey)
 	w.Header().Set("Connection", "Upgrade")
 	w.Header().Set("Upgrade", "websocket")
 	w.Header().Set(
 		"Sec-WebSocket-Accept",
-		WsSecWebSocketAccept(r.Header.Get("Sec-WebSocket-Key")),
+		secAccept,
 	)
 	w.WriteHeader(101)
 	conn, rw, err := hijacker.Hijack()
@@ -198,7 +209,7 @@ func (e *Edge) wsTunnelTransport(tun_conn net.Conn, service string) {
 	defer sidecar_conn.Close()
 	e.Logger.Debug("tunnel headers websocket to sidecar %s", sidecar)
 	servicePrefix := fmt.Sprintf("/%s/", service)
-	err = e.wsConsumeHeaders(sidecar, servicePrefix, sidecar_conn)
+	_, err = e.wsConsumeHeaders(sidecar, servicePrefix, sidecar_conn)
 	if err != nil {
 		sidecar_conn.Close()
 		e.Logger.Error("tunnel unable to run websocket headers: %v", err)

@@ -15,7 +15,7 @@ import (
 
 // Put this in as a test
 func (e *Edge) Echo(w http.ResponseWriter, r *http.Request) {
-	closer, rw, err := e.wsHijack(w, r)
+	closer, rw, err := e.wsHijack(w, r, r.Header.Get("Sec-WebSocket-Key"))
 	if err != nil {
 		w.WriteHeader(500)
 		return
@@ -71,7 +71,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				defer dest_conn.Close()
 				// If that worked, then hijack the connection incoming
 				e.Logger.Debug("transporting websocket to service %s", to)
-				src_conn, rw, err := e.wsHijack(w, r)
+				src_conn, rw, err := e.wsHijack(w, r, r.Header.Get("Sec-WebSocket-Key"))
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
 					return
