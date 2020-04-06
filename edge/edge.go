@@ -218,56 +218,57 @@ func (e *Edge) CheckAvailability() *Availability {
 }
 
 // Tells us to listen internally on a port
-func (e *Edge) Exec(lsn Spawn) error {
-	if lsn.Name == "" {
+func (e *Edge) Exec(spawn Spawn) error {
+	if spawn.Name == "" {
 		return fmt.Errorf("We must name spawned items")
 	}
-	if lsn.Port == 0 {
-		lsn.Port = AllocPort()
+	if spawn.Port == 0 {
+		spawn.Port = AllocPort()
 	}
-	if lsn.PortIntoCmdArg > 0 {
-		lsn.Run.Cmd[lsn.PortIntoCmdArg] = lsn.Port.String()
+	if spawn.PortIntoCmdArg > 0 {
+		spawn.Run.Cmd[spawn.PortIntoCmdArg] = spawn.Port.String()
 	}
-	if lsn.Bind == "" {
-		lsn.Bind = "127.0.0.1"
+	if spawn.Bind == "" {
+		spawn.Bind = "127.0.0.1"
 	}
-	if lsn.Run.Stdout == nil {
-		lsn.Run.Stdout = os.Stdout
+	if spawn.Run.Stdout == nil {
+		spawn.Run.Stdout = os.Stdout
 	}
-	if lsn.Run.Stderr == nil {
-		lsn.Run.Stderr = os.Stderr
+	if spawn.Run.Stderr == nil {
+		spawn.Run.Stderr = os.Stderr
 	}
-	if lsn.Run.Stdin == nil {
-		lsn.Run.Stdin = os.Stdin
+	if spawn.Run.Stdin == nil {
+		spawn.Run.Stdin = os.Stdin
 	}
-	if lsn.Run.EditFn != nil {
-		lsn.Run.EditFn(&lsn)
+	if spawn.Run.EditFn != nil {
+		spawn.Run.EditFn(&spawn)
 	}
-	e.Logger.Info("edge.Spawn: %s", common.AsJsonPretty(lsn))
+	e.Logger.Info("edge.Spawn: %s", common.AsJsonPretty(spawn))
 	// Actually execute the command
-	if len(lsn.Run.Cmd) > 0 {
-		lsn.Run.Running = exec.Command(lsn.Run.Cmd[0], lsn.Run.Cmd[1:]...)
-		lsn.Run.Running.Stdout = lsn.Run.Stdout
-		lsn.Run.Running.Stderr = lsn.Run.Stderr
-		lsn.Run.Running.Stdin = lsn.Run.Stdin
-		lsn.Run.Running.Dir = lsn.Run.Dir
-		lsn.Run.Running.Env = append(os.Environ(), lsn.Run.Env...)
+	if len(spawn.Run.Cmd) > 0 {
+		spawn.Run.Running = exec.Command(spawn.Run.Cmd[0], spawn.Run.Cmd[1:]...)
+		spawn.Run.Running.Stdout = spawn.Run.Stdout
+		spawn.Run.Running.Stderr = spawn.Run.Stderr
+		spawn.Run.Running.Stdin = spawn.Run.Stdin
+		spawn.Run.Running.Dir = spawn.Run.Dir
+		spawn.Run.Running.Env = append(os.Environ(), spawn.Run.Env...)
 		go func() {
-			err := lsn.Run.Running.Run()
+			err := spawn.Run.Running.Run()
 			if err != nil {
-				e.Logger.Info("failed to spawn cmd for %d: %v", lsn.Port, err)
+				e.Logger.Info("failed to spawn cmd for %d: %v", spawn.Port, err)
 			}
+			// When this spawn dies, remove it
 		}()
 	} else {
-		if len(lsn.Run.Static) > 0 {
-			bind := fmt.Sprintf("127.0.0.1:%d", lsn.Port)
-			e.Logger.Info("spawn static: http://%s vs %s", bind, lsn.Run.Static)
-			lsn.Run.Server = &http.Server{
+		if len(spawn.Run.Static) > 0 {
+			bind := fmt.Sprintf("127.0.0.1:%d", spawn.Port)
+			e.Logger.Info("spawn static: http://%s vs %s", bind, spawn.Run.Static)
+			spawn.Run.Server = &http.Server{
 				Addr:    bind,
-				Handler: http.FileServer(http.Dir(lsn.Run.Static)),
+				Handler: http.FileServer(http.Dir(spawn.Run.Static)),
 			}
 			go func() {
-				err := lsn.Run.Server.ListenAndServe()
+				err := spawn.Run.Server.ListenAndServe()
 				if err != nil {
 					e.Logger.Info("failed to run internal static file server for %s: %v", bind, err)
 				}
@@ -280,11 +281,11 @@ func (e *Edge) Exec(lsn Spawn) error {
 	ready := make(chan bool)
 	go func() {
 		for {
-			if lsn.Run.HttpCheck == "" {
+			if spawn.Run.HttpCheck == "" {
 				ready <- true
 				return
 			}
-			url := fmt.Sprintf("http://127.0.0.1:%d", lsn.Port)
+			url := fmt.Sprintf("http://127.0.0.1:%d", spawn.Port)
 			req, _ := http.NewRequest("GET", url, nil)
 			cl := http.Client{}
 			res, err := cl.Do(req)
@@ -303,7 +304,7 @@ func (e *Edge) Exec(lsn Spawn) error {
 	}()
 	_ = <-ready
 
-	e.Spawns = append(e.Spawns, lsn)
+	e.Spawns = append(e.Spawns, spawn)
 	return nil
 }
 
