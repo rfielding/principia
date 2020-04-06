@@ -202,6 +202,5 @@ So, there is another element to make this work.  In addition to the Edge and Sid
 - wsHttps - which allows us to just open up a socket and treat it like normal TLS tcp sockets.  We can speak literal MongoDB protocol into it.
 - wsConsumeHeaders - This function will take a TCP connection, and append the GET and 101 status onto it.
 - wsHijack - is the function that switches from http to the raw TCP connection, which will transport what is literally send and recieved into the tunnel socket.
-- wsHijack
 
 > see edge/ws.go
