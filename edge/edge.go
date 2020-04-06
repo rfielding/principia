@@ -85,12 +85,13 @@ type Tunnel struct {
 type Edge struct {
 	// The name is how reverse proxy binds and load balances us
 	Name string
-	// Default is 0.0.0.0
-	Bind string
 	// We can use a Host that will be NAT, as long as Port is same at NAT and inside.
 	Host              string
 	Port              Port
+	Bind              string
+	HostSidecar       string
 	PortSidecar       Port
+	BindSidecar       string
 	Logger            common.Logger
 	Spawns            []Spawn
 	DefaultLease      time.Duration
@@ -128,7 +129,7 @@ func (e *Edge) PeerName() string {
 }
 
 func (e *Edge) SidecarName() string {
-	return fmt.Sprintf("127.0.0.1:%d", e.PortSidecar)
+	return fmt.Sprintf("%s:%d", e.HostSidecar, e.PortSidecar)
 }
 
 func (e *Edge) AvailableFromPeer(peer Peer) (map[string]*Service, error) {
@@ -156,7 +157,7 @@ func (e *Edge) CheckAvailability() *Availability {
 	spawns := e.Spawns
 	for _, spawn := range spawns {
 		available[spawn.Name] = &Service{
-			Endpoint: fmt.Sprintf("127.0.0.1:%d", spawn.Port),
+			Endpoint: fmt.Sprintf("%s:%d", e.HostSidecar, spawn.Port),
 			Expose:   spawn.Expose,
 		}
 	}
@@ -164,7 +165,7 @@ func (e *Edge) CheckAvailability() *Availability {
 	tunnels := e.Tunnels
 	for _, tunnel := range tunnels {
 		available[tunnel.Name] = &Service{
-			Endpoint:   fmt.Sprintf("127.0.0.1:%d", tunnel.Port),
+			Endpoint:   fmt.Sprintf("%s:%d", e.HostSidecar, tunnel.Port),
 			Volunteers: make([]string, 0),
 		}
 	}
@@ -238,7 +239,7 @@ func (e *Edge) Exec(spawn Spawn) error {
 		spawn.Run.Cmd[spawn.PortIntoCmdArg] = spawn.Port.String()
 	}
 	if spawn.Bind == "" {
-		spawn.Bind = "127.0.0.1"
+		spawn.Bind = e.BindSidecar
 	}
 	if spawn.Run.Stdout == nil {
 		spawn.Run.Stdout = os.Stdout
@@ -279,7 +280,7 @@ func (e *Edge) Exec(spawn Spawn) error {
 		}()
 	} else {
 		if len(spawn.Run.Static) > 0 {
-			bind := fmt.Sprintf("127.0.0.1:%d", spawn.Port)
+			bind := fmt.Sprintf("%s:%d", e.BindSidecar, spawn.Port)
 			e.Logger.Info("spawn static: http://%s vs %s", bind, spawn.Run.Static)
 			spawn.Run.Server = &http.Server{
 				Addr:    bind,
@@ -303,7 +304,7 @@ func (e *Edge) Exec(spawn Spawn) error {
 				ready <- true
 				return
 			}
-			url := fmt.Sprintf("http://127.0.0.1:%d", spawn.Port)
+			url := fmt.Sprintf("http://%s:%d", e.HostSidecar, spawn.Port)
 			req, _ := http.NewRequest("GET", url, nil)
 			cl := http.Client{}
 			res, err := cl.Do(req)
@@ -337,7 +338,7 @@ func (e *Edge) Peer(host string, port Port) {
 
 func (e *Edge) Tunnel(service string, port Port) error {
 	e.Logger.Info("e.Tunnel: %s %d", service, port)
-	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", e.HostSidecar, port))
 	if err != nil {
 		return err
 	}
@@ -397,6 +398,12 @@ func Start(e *Edge) (*Edge, error) {
 	if e.PortSidecar == 0 {
 		e.PortSidecar = AllocPort()
 	}
+	if e.HostSidecar == "" {
+		e.HostSidecar = "127.0.0.1"
+	}
+	if e.BindSidecar == "" {
+		e.BindSidecar = "127.0.0.1"
+	}
 	if e.Host == "" {
 		e.Host = "127.0.0.1"
 	}
@@ -409,7 +416,7 @@ func Start(e *Edge) (*Edge, error) {
 	e.Logger = common.NewLogger(fmt.Sprintf("%s", e.Name))
 	e.Spawns = make([]Spawn, 0)
 	e.Spawns = append(e.Spawns, Spawn{
-		Bind: "127.0.0.1",
+		Bind: e.BindSidecar,
 		Port: e.PortSidecar,
 		Name: "sidecarInternal",
 	})
@@ -479,10 +486,10 @@ func Start(e *Edge) (*Edge, error) {
 
 	// Our internal server can use plaintext
 	e.InternalServer = http.Server{
-		Addr:    fmt.Sprintf("127.0.0.1:%d", e.PortSidecar),
+		Addr:    fmt.Sprintf("%s:%d", e.BindSidecar, e.PortSidecar),
 		Handler: e,
 	}
-	e.Logger.Info("edge.Start: http://127.0.0.1:%d", e.PortSidecar)
+	e.Logger.Info("edge.Start: http://%s:%d", e.HostSidecar, e.PortSidecar)
 	go e.InternalServer.ListenAndServe()
 
 	return e, nil

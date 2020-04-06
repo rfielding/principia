@@ -58,7 +58,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for _, spawn := range e.Spawns {
 		expectedServicePrefix := fmt.Sprintf("/%s/", spawn.Name)
 		if strings.HasPrefix(r.RequestURI, expectedServicePrefix) {
-			to := fmt.Sprintf("127.0.0.1:%d", spawn.Port)
+			to := fmt.Sprintf("%s:%d", e.HostSidecar, spawn.Port)
 			logger.Debug("listener: GET %s -> %s %s", r.RequestURI, spawn.Name, to)
 			if wantsWebsockets {
 				// Dial the destination in plaintext, with no websocket headers
