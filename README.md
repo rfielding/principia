@@ -199,6 +199,8 @@ Tunnels
 
 Tunnels are implemented as WebSockets.  A WebSocket is a TCP connection, with an http header sequence pre-pended to it:
 
+[websocket.png](websocket.png)
+
 If I tcp connect to the sidecar, by default it is presumed to be an http-compatible app.  That means that the header sequence looks like this:
 
 Send to 127.0.0.1:8029 (assume it's the sidecar or edge), and it requires an URL prefix to know where to forward the request, (on to `GET /` at the next hop):
