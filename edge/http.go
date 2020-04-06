@@ -38,6 +38,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	logger := e.Logger.Push("ServeHTTP")
+	available := e.CheckAvailability().Available
 	// Find static items
 	if r.Method == "GET" {
 		if r.RequestURI == "/echo" {
@@ -45,7 +46,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if r.RequestURI == "/available" {
-			w.Write(common.AsJsonPretty(e.Available()))
+			w.Write(common.AsJsonPretty(available))
 			return
 		}
 	}
@@ -103,7 +104,6 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// Search volunteers - leave url alone
-	available := e.Available()
 	for name := range available {
 		if strings.HasPrefix(r.RequestURI, "/"+name+"/") {
 			volunteers := available[name].Volunteers
@@ -138,7 +138,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	e.LogRet(w, http.StatusNotFound, nil, "could not find: %s %s, have %s", r.Method, r.RequestURI, common.AsJsonPretty(e.Available()))
+	e.LogRet(w, http.StatusNotFound, nil, "could not find: %s %s, have %s", r.Method, r.RequestURI, common.AsJsonPretty(available))
 }
 
 func (e *Edge) GetFromPeer(peerName string, cmd string) ([]byte, error) {

@@ -82,32 +82,36 @@ type Tunnel struct {
 // Edge is pointed to by Peer, and contains the reverse proxy to
 // spawned Listener objects
 type Edge struct {
-	Name                 string
-	Host                 string
-	Bind                 string
-	Port                 Port
-	PortSidecar          Port
-	Logger               common.Logger
-	Listeners            []Listener
-	DefaultLease         time.Duration
-	Peers                []Peer
-	Tunnels              []Tunnel
-	CertPath             string
-	KeyPath              string
-	TrustPath            string
-	HttpClient           *http.Client
-	TLSClientConfig      *tls.Config
-	InternalServer       http.Server
-	ExternalServer       http.Server
-	LastAvailable        map[string]*Service
-	LastAvailableExpired time.Time
-	Done                 chan bool
+	Name            string
+	Host            string
+	Bind            string
+	Port            Port
+	PortSidecar     Port
+	Logger          common.Logger
+	Listeners       []Listener
+	DefaultLease    time.Duration
+	Peers           []Peer
+	Tunnels         []Tunnel
+	CertPath        string
+	KeyPath         string
+	TrustPath       string
+	HttpClient      *http.Client
+	TLSClientConfig *tls.Config
+	InternalServer  http.Server
+	ExternalServer  http.Server
+	Availability    *Availability
+	Done            chan bool
 }
 
 type Service struct {
 	Endpoint   string   `json:"Endpoint,omitempty"`
 	Volunteers []string `json:"Volunteers,omitempty"`
 	Expose     bool     `json:"Expose,omitempty"`
+}
+
+type Availability struct {
+	ExpiresAt time.Time           `json:"ExpiresAt,omitempty"`
+	Available map[string]*Service `json:"Available,omitempty"`
 }
 
 func (p Peer) Name() string {
@@ -137,9 +141,9 @@ func (e *Edge) AvailableFromPeer(peer Peer) (map[string]*Service, error) {
 
 // Available should be periodically polled for
 // ports available to service us
-func (e *Edge) Available() map[string]*Service {
-	if e.LastAvailableExpired.Unix() > time.Now().Unix() {
-		return e.LastAvailable
+func (e *Edge) CheckAvailability() *Availability {
+	if e.Availability != nil && e.Availability.ExpiresAt.Unix() > time.Now().Unix() {
+		return e.Availability
 	}
 	logger := e.Logger.Push("Available")
 	available := make(map[string]*Service)
@@ -202,9 +206,11 @@ func (e *Edge) Available() map[string]*Service {
 		}
 	}
 	e.Peers = e.Peers[0:i]
-	e.LastAvailable = available
-	e.LastAvailableExpired = time.Now().Add(5 * time.Second)
-	return e.LastAvailable
+	e.Availability = &Availability{
+		Available: available,
+		ExpiresAt: time.Now().Add(5 * time.Second),
+	}
+	return e.Availability
 }
 
 // Tells us to listen internally on a port

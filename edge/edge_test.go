@@ -114,7 +114,7 @@ func TestEdge(t *testing.T) {
 			HttpCheck: "/",
 		},
 	}))
-	testLogger.Info("Available eDB:%d %s", eDB.Port, common.AsJsonPretty(eDB.Available()))
+	testLogger.Info("Available eDB:%d %s", eDB.Port, common.AsJsonPretty(eDB.CheckAvailability().Available))
 
 	TryTest(t, mongo.Spawn(edge.Listener{
 		Name: "mongo_eweb",
@@ -135,7 +135,7 @@ func TestEdge(t *testing.T) {
 			HttpCheck: "/",
 		},
 	}))
-	testLogger.Info("Available mongo:%s %s", mongo.Port, common.AsJsonPretty(mongo.Available()))
+	testLogger.Info("Available mongo:%s %s", mongo.Port, common.AsJsonPretty(mongo.CheckAvailability().Available))
 
 	TryTest(t, eAuth1.Spawn(edge.Listener{
 		Name:        "eAuth",
@@ -178,11 +178,11 @@ func TestEdge(t *testing.T) {
 	eWeb.Tunnel("mongo_eweb", mongo_port)
 
 	// Log info about it
-	testLogger.Info("Available eAuth1:%d %s", eAuth1.Port, common.AsJsonPretty(eAuth1.Available()))
-	testLogger.Info("Available eAuth2:%d %s", eAuth2.Port, common.AsJsonPretty(eAuth2.Available()))
-	testLogger.Info("Available mongo:%d %s", mongo.Port, common.AsJsonPretty(mongo.Available()))
-	testLogger.Info("Available eDB:%d %s", eDB.Port, common.AsJsonPretty(eDB.Available()))
-	testLogger.Info("Available eWeb:%d %s", eWeb.Port, common.AsJsonPretty(eWeb.Available()))
+	testLogger.Info("Available eAuth1:%d %s", eAuth1.Port, common.AsJsonPretty(eAuth1.CheckAvailability().Available))
+	testLogger.Info("Available eAuth2:%d %s", eAuth2.Port, common.AsJsonPretty(eAuth2.CheckAvailability().Available))
+	testLogger.Info("Available mongo:%d %s", mongo.Port, common.AsJsonPretty(mongo.CheckAvailability().Available))
+	testLogger.Info("Available eDB:%d %s", eDB.Port, common.AsJsonPretty(eDB.CheckAvailability().Available))
+	testLogger.Info("Available eWeb:%d %s", eWeb.Port, common.AsJsonPretty(eWeb.CheckAvailability().Available))
 
 	eDB_eWeb_data, err := eDB.GetFromPeer(eWeb.PeerName(), "/eDB_eWeb/")
 	TryTest(t, err)
@@ -198,7 +198,7 @@ func TestEdge(t *testing.T) {
 
 	// Talk to actual service for comparison
 	if true {
-		eDB_svc_name := eDB.Available()["eDB_eWeb"].Endpoint
+		eDB_svc_name := eDB.CheckAvailability().Available["eDB_eWeb"].Endpoint
 		url := fmt.Sprintf("http://%s/", eDB_svc_name)
 		req, err := http.NewRequest("GET", url, nil)
 		TryTest(t, err)
@@ -217,7 +217,7 @@ func TestEdge(t *testing.T) {
 
 	// Talk to local Tunnel
 	if true {
-		eDB_svc_name := eWeb.Available()["eDB_eWeb"].Endpoint
+		eDB_svc_name := eWeb.CheckAvailability().Available["eDB_eWeb"].Endpoint
 		url := fmt.Sprintf("http://%s/", eDB_svc_name)
 		req, err := http.NewRequest("GET", url, nil)
 		TryTest(t, err)
