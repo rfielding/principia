@@ -362,9 +362,6 @@ func (e *Edge) Tunnel(service string, port Port) error {
 }
 
 func (e *Edge) Close() error {
-	if true {
-		return nil
-	}
 	tunnels := e.Tunnels
 	for _, tunnel := range tunnels {
 		if tunnel.Listener != nil {
