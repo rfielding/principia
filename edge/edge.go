@@ -152,16 +152,18 @@ func (e *Edge) CheckAvailability() *Availability {
 	logger := e.Logger.Push("Available")
 	available := make(map[string]*Service)
 	// These are locally implemented
-	for _, lsn := range e.Spawns {
-		available[lsn.Name] = &Service{
-			Endpoint: fmt.Sprintf("127.0.0.1:%d", lsn.Port),
-			Expose:   lsn.Expose,
+	spawns := e.Spawns
+	for _, spawn := range spawns {
+		available[spawn.Name] = &Service{
+			Endpoint: fmt.Sprintf("127.0.0.1:%d", spawn.Port),
+			Expose:   spawn.Expose,
 		}
 	}
 	// These exist remotely
-	for _, rq := range e.Tunnels {
-		available[rq.Name] = &Service{
-			Endpoint:   fmt.Sprintf("127.0.0.1:%d", rq.Port),
+	tunnels := e.Tunnels
+	for _, tunnel := range tunnels {
+		available[tunnel.Name] = &Service{
+			Endpoint:   fmt.Sprintf("127.0.0.1:%d", tunnel.Port),
 			Volunteers: make([]string, 0),
 		}
 	}
@@ -258,6 +260,15 @@ func (e *Edge) Exec(spawn Spawn) error {
 				e.Logger.Info("failed to spawn cmd for %d: %v", spawn.Port, err)
 			}
 			// When this spawn dies, remove it
+			spawnList := e.Spawns
+			for i := range spawnList {
+				if spawn.Name == spawnList[i].Name {
+					spawnList[i] = spawnList[len(spawnList)-1]
+					spawnList = spawnList[0 : len(spawnList)-1]
+					break
+				}
+			}
+			e.Spawns = spawnList
 		}()
 	} else {
 		if len(spawn.Run.Static) > 0 {
@@ -346,17 +357,19 @@ func (e *Edge) Close() error {
 	if true {
 		return nil
 	}
-	for _, tunnel := range e.Tunnels {
+	tunnels := e.Tunnels
+	for _, tunnel := range tunnels {
 		if tunnel.Listener != nil {
 			tunnel.Listener.Close()
 		}
 	}
-	for _, lsn := range e.Spawns {
-		if lsn.Run.Running != nil {
-			lsn.Run.Running.Process.Kill()
+	spawns := e.Spawns
+	for _, spawn := range spawns {
+		if spawn.Run.Running != nil {
+			spawn.Run.Running.Process.Kill()
 		}
-		if lsn.Run.Server != nil {
-			lsn.Run.Server.Shutdown(context.Background())
+		if spawn.Run.Server != nil {
+			spawn.Run.Server.Shutdown(context.Background())
 		}
 	}
 	e.ExternalServer.Shutdown(context.Background())

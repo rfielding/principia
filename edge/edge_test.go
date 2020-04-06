@@ -132,7 +132,6 @@ func TestEdge(t *testing.T) {
 				"mongo",
 			},
 			Dir:       ".",
-			HttpCheck: "/",
 		},
 	}))
 	testLogger.Info("Available mongo:%s %s", mongo.Port, common.AsJsonPretty(mongo.CheckAvailability().Available))
@@ -141,7 +140,7 @@ func TestEdge(t *testing.T) {
 		Name:        "eAuth",
 		PortIntoEnv: "EAUTH_PORT",
 		Run: edge.Command{
-			Cmd: []string{"tree"},
+			Cmd: []string{"sleep", "50"},
 		},
 	}))
 
@@ -149,7 +148,7 @@ func TestEdge(t *testing.T) {
 		Name:        "eAuth",
 		PortIntoEnv: "EAUTH_PORT",
 		Run: edge.Command{
-			Cmd: []string{"ls", "-al"},
+			Cmd: []string{"sleep", "30"},
 		},
 	}))
 
