@@ -239,8 +239,9 @@ And here, instead of our normal sequence of reading a body out of the header, we
 
 So, there is another element to make this work.  In addition to the Edge and Sidecar supporting WebSockets, the sidecar must spawn a Tunnel socket that _strips off_ the WebSockets header.  The WebSockets header exists to multiplex the tunnel through http, so the the destination can figure out what to connect to on the other side.  So, in our code, we have.
 
-- wsHttps - which allows us to just open up a socket and treat it like normal TLS tcp sockets.  We can speak literal MongoDB protocol into it.
-- wsConsumeHeaders - This function will take a TCP connection, and append the GET and 101 status onto it.
+- wsTransport - given a pair of TCP sockets, just keep moving bytes between them until they close.
+- wsHttps - which allows us to just open up a socket to a peer edge and initiate a websocket.  Note that Go http library does not have client support for websocket (!!).  Http has to be literally implemented for this part inside a TCP socket.
+- wsConsumeHeaders - This function will take a TCP connection, and append the GET and 101 status onto it.  This needs to be called by the tunnel port when talking to a volunteer Edge server.  It is omitted when the Edge needs to talk to the actual local tunnel socket.
 - wsHijack - is the function that switches from http to the raw TCP connection, which will transport what is literally send and recieved into the tunnel socket.
 
 > see edge/ws.go
