@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	//"syscall"
 	"time"
 )
 
@@ -261,9 +260,7 @@ func (e *Edge) Exec(spawn Spawn) error {
 		spawn.Run.Running.Stderr = spawn.Run.Stderr
 		spawn.Run.Running.Stdin = spawn.Run.Stdin
 		spawn.Run.Running.Dir = spawn.Run.Dir
-		//spawn.Run.Running.SysProcAttr = &syscall.SysProcAttr{
-	//		Pdeathsig: syscall.SIGTERM,
-	//	}
+		commandFix(spawn.Run.Running)
 		spawn.Run.Running.Env = append(os.Environ(), spawn.Run.Env...)
 		go func() {
 			err := spawn.Run.Running.Run()
