@@ -19,7 +19,7 @@ rather than `kubernetes` or `docker-compose`.  Specifically, it has these goals:
 
 A shorter description of what it is trying to do: replace docker-compose, and integrate common things that normally must be configured and bolted on.
 
-> Prerequisites: Have docker installed so that it does not need root to run; which is not the default on Linux.  Have Go 1.13 installed, with GOPATH setup correctly. The integration test runs the Unix `tree` command, so install that.
+> Prerequisites: Have docker installed so that it does not need root to run; which is not the default on Linux.  Have Go 1.13 installed, with GOPATH setup correctly. 
 
 This example resembles a simple integration test we have in package `edge`, run like this:
 ```bash
@@ -302,7 +302,7 @@ integrationTest|INFO|:   }
 integrationTest|INFO|: }
 ```
 
-Note that on one, we gave it the Unix tree command, rather than a web server, just to show that there is nothing docker-specific about this project.
+A simple execute of the tree command.
 
 ```
 127.0.0.1:8024|INFO|: edge.Spawn:
