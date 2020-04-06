@@ -2,7 +2,7 @@ Principia
 =========
 
 > When the Great Plague of London ravaged through the British city beginning in 1665, Issac Newton was a student at Trinity College, Cambridge. As described in Gale Christianson's Isaac Newton, a few months after acquiring his undergraduate degree in the spring of that year, the 23-year-old retreated to his family farm of Woolsthorpe Manor, some 60 miles northwest of Cambridge. Along with being located a safe distance from the carriers of the horrific disease that was wiping out the population of the city, Woolsthorpe provided the sort of quiet, serene environment that allowed a mind like Newton's to journey, uninterrupted, to the farthest reaches of the imagination. This period is now known as annus mirabilis – the "year of wonders."
-![diagram.gif](diagram.gif)
+![diagram.gif](docs/diagram.gif)
 
 Principia is a project that aims to simplify the wiring of network programs
 into applications.  It tries to follow the example of `ssh` as much as possible,
@@ -26,7 +26,7 @@ This example resembles a simple integration test we have in package `edge`, run 
 ./build
 ```
 
-![edge.png](edge.png)
+![edge.png](docs/edge.png)
 
 > Round circles are TCP ports.  Red is TLS.  Purple is the actual binary with sidecar.  Yellow are spawned processes and tunnel ports.
 
@@ -200,7 +200,7 @@ Tunnels
 
 Tunnels are implemented as WebSockets.  A WebSocket is a TCP connection, with an http header sequence pre-pended to it:
 
-![websocket.png](websocket.png)
+![websocket.png](docs/websocket.png)
 
 If I tcp connect to the sidecar, by default it is presumed to be an http-compatible app.  That means that the header sequence looks like this:
 
