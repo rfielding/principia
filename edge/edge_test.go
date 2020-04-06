@@ -131,7 +131,7 @@ func TestEdge(t *testing.T) {
 				"-p", "127.0.0.1:27017:27017",
 				"mongo",
 			},
-			Dir:       ".",
+			Dir: ".",
 		},
 	}))
 	testLogger.Info("Available mongo:%s %s", mongo.Port, common.AsJsonPretty(mongo.CheckAvailability().Available))

@@ -224,6 +224,12 @@ func (e *Edge) Exec(spawn Spawn) error {
 	if spawn.Name == "" {
 		return fmt.Errorf("We must name spawned items")
 	}
+	spawnList := e.Spawns
+	for i := range spawnList {
+		if spawn.Name == spawnList[i].Name {
+			return fmt.Errorf("Spawns must be uniquely within an edge.  You can make more edges on the same host.")
+		}
+	}
 	if spawn.Port == 0 {
 		spawn.Port = AllocPort()
 	}
