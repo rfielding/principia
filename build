@@ -2,4 +2,5 @@
 
 #openssl req -nodes -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365
 
-docker stop mongo_eweb ; docker rm mongo_eweb ; docker stop eDB ; docker rm eDB ; (go fmt ./... && cd edge && go test)
+docker stop mongo_eWeb ; docker rm mongo_eWeb ; docker stop eDB_eWeb ; docker rm eDB_eWeb ; 
+(go fmt ./... && cd edge && go test)

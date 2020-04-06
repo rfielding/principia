@@ -114,7 +114,8 @@ func TestEdge(t *testing.T) {
 			Cmd: []string{
 				"docker",
 				"run",
-				"--name", "eDB",
+				//"--rm",
+				"--name", "eDB_eWeb",
 				"-p", "127.0.0.1:5984:5984",
 				"-e", "COUCHDB_USER=admin",
 				"-e", "COUCHDB_PASSWORD=password",
@@ -127,7 +128,7 @@ func TestEdge(t *testing.T) {
 	testLogger.Info("Available eDB:%d %s", eDB.Port, common.AsJsonPretty(eDB.CheckAvailability().Available))
 
 	TryTest(t, mongo.Exec(edge.Spawn{
-		Name: "mongo_eweb",
+		Name: "mongo_eWeb",
 		Run: edge.Command{
 			EditFn: func(lsn *edge.Spawn) {
 				lsn.Run.Cmd[5] = fmt.Sprintf("127.0.0.1:%d:27017", lsn.Port)
@@ -137,7 +138,8 @@ func TestEdge(t *testing.T) {
 			Cmd: []string{
 				"docker",
 				"run",
-				"--name", "mongo_eweb",
+				//"--rm",
+				"--name", "mongo_eWeb",
 				"-p", "127.0.0.1:27017:27017",
 				"mongo",
 			},
@@ -184,7 +186,7 @@ func TestEdge(t *testing.T) {
 	eWeb.Peer(mongo.Host, mongo.Port)
 	eWeb.Tunnel("eDB_eWeb", eDB_eWeb_port)
 	eWeb.Tunnel("eAuth", eAuth_port)
-	eWeb.Tunnel("mongo_eweb", mongo_port)
+	eWeb.Tunnel("mongo_eWeb", mongo_port)
 
 	// Log info about it
 	testLogger.Info("Available eAuth1:%d %s", eAuth1.Port, common.AsJsonPretty(eAuth1.CheckAvailability().Available))
