@@ -218,7 +218,7 @@ func (e *Edge) CheckAvailability() *Availability {
 }
 
 // Tells us to listen internally on a port
-func (e *Edge) Spawn(lsn Spawn) error {
+func (e *Edge) Exec(lsn Spawn) error {
 	if lsn.Name == "" {
 		return fmt.Errorf("We must name spawned items")
 	}

@@ -66,7 +66,7 @@ Once this edge exists, we can spawn commands in it, very much like `ssh`.  In th
 - We can inject the chosen port into the command-launch with a few methods (environment vars, parameter overwrite, etc)
 
 ```go
-eDB.Spawn(edge.Listener{
+eDB.Exec(edge.Spawn{
   Name: "eDB_eWeb", // an eDB instance, with a schema for eWeb
   Run: edge.Command{
     EditFn: func(lsn *edge.Listener) {
@@ -93,13 +93,13 @@ eDB.Spawn(edge.Listener{
 Here is an example of injecting the randomly chosen port into an environment variable:
 
 ```go
-	TryTest(t, eAuth1.Spawn(edge.Listener{
+	TryTest(t, eAuth1.Exec(edge.Spawn{
 		Name:        "eAuth",
                 // When mysvc was spawned, Port was set.  
                 // Assign to this env var for mysvc to launch on that port.
                 // This is the opposite of how most frameworks do it.
-                // The sidecar makes up a port, and launches the command with it injected. 
-		PortIntoEnv: "MYSVC_PORT", 
+                // The sidecar makes up a port, and launches the command with it injected.
+		PortIntoEnv: "MYSVC_PORT",
 		Run: edge.Command{
 			Cmd: []string{"/usr/bin/mysvc"},
 		},
@@ -117,7 +117,7 @@ Another example of a spawn is a static web server.
 
 ```go
 // Launch a static web server.  We don't need a container for this.
-eWeb.Spawn(edge.Listener{
+eWeb.Exec(edge.Spawn{
   Name:   "eWeb",
   Expose: true,
   Run: edge.Command{
@@ -137,7 +137,7 @@ eWeb.Tunnel("eDB_eWeb", eDB_eWeb_port)
 
 The tunnel can be found on the other machine, because when we hit the endpoint `GET /available`, we get a data structure that tells us what reverse proxy prefixes (and websockets) are available in the proxy.
 
-> This is not a config file.  It is automatically generated when Edges query each other for `GET /available`.  When processes and edges, die, `/available` will change.  If multiple edges are hosting a service, then it will have multiple volunteers; which is load-balancing.  An Endpoint is a socket that looks like the plain service with no reverse-proxying, and is the actual service if local, or over a TLS websocket if done by a volunteer.  There is no explicit config to use websockets.  These are defaults. 
+> This is not a config file.  It is automatically generated when Edges query each other for `GET /available`.  When processes and edges, die, `/available` will change.  If multiple edges are hosting a service, then it will have multiple volunteers; which is load-balancing.  An Endpoint is a socket that looks like the plain service with no reverse-proxying, and is the actual service if local, or over a TLS websocket if done by a volunteer.  There is no explicit config to use websockets.  These are defaults.
 
 ```json
 // https://localhost:8030 /available
@@ -281,7 +281,7 @@ localhost:8030|INFO|: edge.Start: http://127.0.0.1:8031
 Here some commands got spawned.  One sidecar launched `eDB_eWeb`, which happens to be a CouchDB container.  Notice that it is not running on the standard CouchDB port.  We did not specify which port it should run on, so it was put on a non-conflicting port.
 
 ```
-127.0.0.1:8022|INFO|: edge.Spawn: 
+127.0.0.1:8022|INFO|: edge.Spawn:
 integrationTest|INFO|: Available eDB:8022 {
 integrationTest|INFO|:   "eDB_eWeb": {
 integrationTest|INFO|:     "Endpoint": "127.0.0.1:8032"
@@ -290,7 +290,7 @@ integrationTest|INFO|:   "sidecarInternal": {
 integrationTest|INFO|:     "Endpoint": "127.0.0.1:8023"
 integrationTest|INFO|:   }
 integrationTest|INFO|: }
-127.0.0.1:8028|INFO|: edge.Spawn: 
+127.0.0.1:8028|INFO|: edge.Spawn:
 integrationTest|INFO|: Available mongo:8028 {
 integrationTest|INFO|:   "mongo_eweb": {
 integrationTest|INFO|:     "Endpoint": "127.0.0.1:8033"
@@ -304,9 +304,9 @@ integrationTest|INFO|: }
 Note that on one, we gave it the Unix tree command, rather than a web server, just to show that there is nothing docker-specific about this project.
 
 ```
-127.0.0.1:8024|INFO|: edge.Spawn: 
-127.0.0.1:8026|INFO|: edge.Spawn: 
-localhost:8030|INFO|: edge.Spawn: 
+127.0.0.1:8024|INFO|: edge.Spawn:
+127.0.0.1:8026|INFO|: edge.Spawn:
+localhost:8030|INFO|: edge.Spawn:
 localhost:8030|INFO|: spawn static: http://127.0.0.1:8036 vs .
 .
 ├── edge.go
@@ -419,13 +419,13 @@ localhost:8030|DEBUG|: volunteer: GET https://127.0.0.1:8022/eDB_eWeb/ -> 127.0.
 127.0.0.1:8022|DEBUG|: GET /eDB_eWeb/ wantsWebsockets=false
 127.0.0.1:8022|DEBUG|: listener: GET /eDB_eWeb/ -> eDB_eWeb 127.0.0.1:8032
 integrationTest|INFO|: Got: {"couchdb":"Welcome","version":"3.0.0","git_sha":"03a77db6c","uuid":"aec65a4a7f59b6bdfb8e71b589f24ab3","features":["access-ready","partitioned","pluggable-storage-engines","reshard","scheduler"],"vendor":{"name":"The Apache Software Foundation"}}
-integrationTest|INFO|: 
+integrationTest|INFO|:
 localhost:8030|DEBUG|: GET /eDB_eWeb/ wantsWebsockets=false
 localhost:8030|DEBUG|: volunteer: GET https://127.0.0.1:8022/eDB_eWeb/ -> 127.0.0.1:8022
 127.0.0.1:8022|DEBUG|: GET /eDB_eWeb/ wantsWebsockets=false
 127.0.0.1:8022|DEBUG|: listener: GET /eDB_eWeb/ -> eDB_eWeb 127.0.0.1:8032
 integrationTest|INFO|: Got: {"couchdb":"Welcome","version":"3.0.0","git_sha":"03a77db6c","uuid":"aec65a4a7f59b6bdfb8e71b589f24ab3","features":["access-ready","partitioned","pluggable-storage-engines","reshard","scheduler"],"vendor":{"name":"The Apache Software Foundation"}}
-integrationTest|INFO|: 
+integrationTest|INFO|:
 ```
 
 We do the same to see that we get html content back, when `/eWeb/` is stripped down and passed as `/` to the eWeb service (a static web server with an index.html file)
@@ -440,7 +440,7 @@ integrationTest|INFO|:     It works!
 integrationTest|INFO|:     <a href=/eDB_eWeb/>Try this!</a>
 integrationTest|INFO|:   </body>
 integrationTest|INFO|: </html>
-integrationTest|INFO|: 
+integrationTest|INFO|:
 ```
 
 This is the important bit, where the test hits a local tunnel to verify that it hits CouchDB.
@@ -449,7 +449,7 @@ We then do the same to a remote tunnel to verify that it looks identical, and al
 ```
 integrationTest|INFO|: GET http://127.0.0.1:8032/ via local websocket
 integrationTest|INFO|: {"couchdb":"Welcome","version":"3.0.0","git_sha":"03a77db6c","uuid":"aec65a4a7f59b6bdfb8e71b589f24ab3","features":["access-ready","partitioned","pluggable-storage-engines","reshard","scheduler"],"vendor":{"name":"The Apache Software Foundation"}}
-integrationTest|INFO|: 
+integrationTest|INFO|:
 integrationTest|INFO|: GET http://127.0.0.1:8037/ via remote websocket
 localhost:8030|DEBUG|: tunnel headers websocket to sidecar 127.0.0.1:8031
 localhost:8030|DEBUG|: GET /eDB_eWeb/ wantsWebsockets=true
@@ -467,7 +467,7 @@ localhost:8030|DEBUG|: connection is hijacked
 localhost:8030|DEBUG|: transport websocket to volunteer: 127.0.0.1:8022
 localhost:8030|DEBUG|: tunnel consuming websocket to sidecar 127.0.0.1:8031
 integrationTest|INFO|: {"couchdb":"Welcome","version":"3.0.0","git_sha":"03a77db6c","uuid":"aec65a4a7f59b6bdfb8e71b589f24ab3","features":["access-ready","partitioned","pluggable-storage-engines","reshard","scheduler"],"vendor":{"name":"The Apache Software Foundation"}}
-integrationTest|INFO|: 
+integrationTest|INFO|:
 ```
 
 Here, we emit the port that the eWeb https port came up on.  All Edge objects act as edge proxies.  This one knows about all dependent services.  It has an index.html in it, and a reference to a webservice.  From the browser, it all looks like one simple web server.  However note that Chrome may give you some trouble about its certificate (I allowed it on Linux Chrome, but OSX Chrome doesn't like it).
