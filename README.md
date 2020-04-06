@@ -94,17 +94,17 @@ eDB.Exec(edge.Spawn{
 Here is an example of injecting the randomly chosen port into an environment variable:
 
 ```go
-	TryTest(t, eAuth1.Exec(edge.Spawn{
-		Name:        "eAuth",
-                // When mysvc was spawned, Port was set.  
-                // Assign to this env var for mysvc to launch on that port.
-                // This is the opposite of how most frameworks do it.
-                // The sidecar makes up a port, and launches the command with it injected.
-		PortIntoEnv: "MYSVC_PORT",
-		Run: edge.Command{
-			Cmd: []string{"/usr/bin/mysvc"},
-		},
-	}))
+TryTest(t, eAuth1.Exec(edge.Spawn{
+  Name:        "eAuth",
+  // When mysvc was spawned, Port was set.  
+  // Assign to this env var for mysvc to launch on that port.
+  // This is the opposite of how most frameworks do it.
+  // The sidecar makes up a port, and launches the command with it injected.
+  PortIntoEnv: "MYSVC_PORT",
+  Run: edge.Command{
+    Cmd: []string{"/usr/bin/mysvc"},
+  },
+}))
 ```
 
 > Note HttpCheck.  When the port it spawns on becomes reachable with a GET on this URL, then the spawn returns.  This eliminates the sleep tricks and complex config to do readiness probes that are common in other frameworks.
