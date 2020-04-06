@@ -107,14 +107,14 @@ func TestEdge(t *testing.T) {
 		Name: "eDB_eWeb",
 		Run: edge.Command{
 			EditFn: func(lsn *edge.Spawn) {
-				lsn.Run.Cmd[5] = fmt.Sprintf("127.0.0.1:%d:5984", lsn.Port)
+				lsn.Run.Cmd[6] = fmt.Sprintf("127.0.0.1:%d:5984", lsn.Port)
 			},
 			Stdout: ioutil.Discard,
 			Stderr: ioutil.Discard,
 			Cmd: []string{
 				"docker",
 				"run",
-				//"--rm",
+				"--rm",
 				"--name", "eDB_eWeb",
 				"-p", "127.0.0.1:5984:5984",
 				"-e", "COUCHDB_USER=admin",
@@ -138,7 +138,7 @@ func TestEdge(t *testing.T) {
 			Cmd: []string{
 				"docker",
 				"run",
-				//"--rm",
+				"--rm",
 				"--name", "mongo_eWeb",
 				"-p", "127.0.0.1:27017:27017",
 				"mongo",
