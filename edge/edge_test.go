@@ -103,50 +103,50 @@ func TestEdge(t *testing.T) {
 			TODO: wait until port can be reached
 	*/
 
-	TryTest(t, eDB.Exec(edge.Spawn{
-		Name: "eDB_eWeb",
-		Run: edge.Command{
-			EditFn: func(lsn *edge.Spawn) {
-				lsn.Run.Cmd[6] = fmt.Sprintf("127.0.0.1:%d:5984", lsn.Port)
-			},
-			Stdout: ioutil.Discard,
-			Stderr: ioutil.Discard,
-			Cmd: []string{
-				"docker",
-				"run",
-				"--rm",
-				"--name", "eDB_eWeb",
-				"-p", "127.0.0.1:5984:5984",
-				"-e", "COUCHDB_USER=admin",
-				"-e", "COUCHDB_PASSWORD=password",
-				"couchdb",
-			},
-			Dir:       ".",
-			HttpCheck: "/",
-		},
-	}))
-	testLogger.Info("Available eDB:%d %s", eDB.Port, common.AsJsonPretty(eDB.CheckAvailability().Available))
+	theDBs := []*edge.Edge{eDB, mongo}
 
-	TryTest(t, mongo.Exec(edge.Spawn{
-		Name: "mongo_eWeb",
-		Run: edge.Command{
-			EditFn: func(lsn *edge.Spawn) {
-				lsn.Run.Cmd[5] = fmt.Sprintf("127.0.0.1:%d:27017", lsn.Port)
+	for _, d := range theDBs {
+		TryTest(t, d.Exec(edge.Spawn{
+			Name: "eDB_eWeb",
+			Run: edge.Command{
+				Override: func(e *edge.Edge, spawn *edge.Spawn) {
+					spawn.Run.Cmd[4] = fmt.Sprintf("127.0.0.1:%d:5984", spawn.Port)
+				},
+				Stdout: ioutil.Discard,
+				Stderr: ioutil.Discard,
+				Cmd: []string{
+					"docker",
+					"run",
+					"--rm",
+					"-p", "127.0.0.1:5984:5984",
+					"-e", "COUCHDB_USER=admin",
+					"-e", "COUCHDB_PASSWORD=password",
+					"couchdb",
+				},
+				Dir:       ".",
+				HttpCheck: "/",
 			},
-			Stdout: ioutil.Discard,
-			Stderr: ioutil.Discard,
-			Cmd: []string{
-				"docker",
-				"run",
-				"--rm",
-				"--name", "mongo_eWeb",
-				"-p", "127.0.0.1:27017:27017",
-				"mongo",
+		}))
+		TryTest(t, d.Exec(edge.Spawn{
+			Name: "mongo_eWeb",
+			Run: edge.Command{
+				Override: func(e *edge.Edge, spawn *edge.Spawn) {
+					spawn.Run.Cmd[4] = fmt.Sprintf("127.0.0.1:%d:27017", spawn.Port)
+				},
+				Stdout: ioutil.Discard,
+				Stderr: ioutil.Discard,
+				Cmd: []string{
+					"docker",
+					"run",
+					"--rm",
+					"-p", "127.0.0.1:27017:27017",
+					"mongo",
+				},
+				Dir: ".",
 			},
-			Dir: ".",
-		},
-	}))
-	testLogger.Info("Available mongo:%s %s", mongo.Port, common.AsJsonPretty(mongo.CheckAvailability().Available))
+		}))
+		testLogger.Info("Available mongo:%s %s", d.Port, common.AsJsonPretty(d.CheckAvailability().Available))
+	}
 
 	TryTest(t, eAuth1.Exec(edge.Spawn{
 		Name:        "eAuth",

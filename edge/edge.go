@@ -6,7 +6,6 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
-	"github.com/rfielding/principia/common"
 	"io"
 	"io/ioutil"
 	"net"
@@ -14,6 +13,8 @@ import (
 	"os"
 	"os/exec"
 	"time"
+
+	"github.com/rfielding/principia/common"
 )
 
 /*
@@ -53,7 +54,7 @@ type Command struct {
 	Running   *exec.Cmd
 	Static    string
 	Server    *http.Server
-	EditFn    func(lsn *Spawn)
+	Override  func(e *Edge, spawn *Spawn)
 	HttpCheck string
 }
 
@@ -249,8 +250,8 @@ func (e *Edge) Exec(spawn Spawn) error {
 	if spawn.Run.Stdin == nil {
 		spawn.Run.Stdin = os.Stdin
 	}
-	if spawn.Run.EditFn != nil {
-		spawn.Run.EditFn(&spawn)
+	if spawn.Run.Override != nil {
+		spawn.Run.Override(e, &spawn)
 	}
 	e.Logger.Info("edge.Spawn: %s", common.AsJsonPretty(spawn))
 	// Actually execute the command
