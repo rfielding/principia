@@ -1,6 +1,7 @@
 Principia
 =========
 
+> When the Great Plague of London ravaged through the British city beginning in 1665, Issac Newton ... [quarantined and worked from home], uninterrupted, to the farthest reaches of the imagination. This period is now known as annus mirabilis – the "year of wonders."
 ![diagram.gif](diagram.gif)
 
 Principia is a project that aims to simplify the wiring of network programs
