@@ -103,9 +103,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// Search volunteers - leave url alone
-	// Periodic poller start
-	e.LastAvailable = e.Available()
-	available := e.LastAvailable
+	available := e.Available()
 	for name := range available {
 		if strings.HasPrefix(r.RequestURI, "/"+name+"/") {
 			volunteers := available[name].Volunteers

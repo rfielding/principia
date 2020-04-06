@@ -82,25 +82,26 @@ type Tunnel struct {
 // Edge is pointed to by Peer, and contains the reverse proxy to
 // spawned Listener objects
 type Edge struct {
-	Name            string
-	Host            string
-	Bind            string
-	Port            Port
-	PortSidecar     Port
-	Logger          common.Logger
-	Listeners       []Listener
-	DefaultLease    time.Duration
-	Peers           []Peer
-	Tunnels         []Tunnel
-	CertPath        string
-	KeyPath         string
-	TrustPath       string
-	HttpClient      *http.Client
-	TLSClientConfig *tls.Config
-	InternalServer  http.Server
-	ExternalServer  http.Server
-	LastAvailable   map[string]*Service
-	Done            chan bool
+	Name                 string
+	Host                 string
+	Bind                 string
+	Port                 Port
+	PortSidecar          Port
+	Logger               common.Logger
+	Listeners            []Listener
+	DefaultLease         time.Duration
+	Peers                []Peer
+	Tunnels              []Tunnel
+	CertPath             string
+	KeyPath              string
+	TrustPath            string
+	HttpClient           *http.Client
+	TLSClientConfig      *tls.Config
+	InternalServer       http.Server
+	ExternalServer       http.Server
+	LastAvailable        map[string]*Service
+	LastAvailableExpired time.Time
+	Done                 chan bool
 }
 
 type Service struct {
@@ -137,6 +138,9 @@ func (e *Edge) AvailableFromPeer(peer Peer) (map[string]*Service, error) {
 // Available should be periodically polled for
 // ports available to service us
 func (e *Edge) Available() map[string]*Service {
+	if e.LastAvailableExpired.Unix() > time.Now().Unix() {
+		return e.LastAvailable
+	}
 	logger := e.Logger.Push("Available")
 	available := make(map[string]*Service)
 	// These are locally implemented
@@ -198,8 +202,9 @@ func (e *Edge) Available() map[string]*Service {
 		}
 	}
 	e.Peers = e.Peers[0:i]
-
-	return available
+	e.LastAvailable = available
+	e.LastAvailableExpired = time.Now().Add(5 * time.Second)
+	return e.LastAvailable
 }
 
 // Tells us to listen internally on a port
@@ -289,9 +294,6 @@ func (e *Edge) Spawn(lsn Listener) error {
 	_ = <-ready
 
 	e.Listeners = append(e.Listeners, lsn)
-
-	// Periodic poller start
-	e.LastAvailable = e.Available()
 	return nil
 }
 
@@ -302,8 +304,6 @@ func (e *Edge) Peer(host string, port Port) {
 		Port:      port,
 		ExpiresAt: time.Now().Add(e.DefaultLease),
 	})
-	// Periodic poller start
-	e.LastAvailable = e.Available()
 }
 
 func (e *Edge) Tunnel(service string, port Port) error {
@@ -449,19 +449,6 @@ func Start(e *Edge) (*Edge, error) {
 	}
 	e.Logger.Info("edge.Start: http://127.0.0.1:%d", e.PortSidecar)
 	go e.InternalServer.ListenAndServe()
-
-	// Periodic poller start
-	e.LastAvailable = e.Available()
-	go func() {
-		for {
-			select {
-			case <-e.Done:
-				return
-			case <-time.After(5 * time.Second):
-				e.LastAvailable = e.Available()
-			}
-		}
-	}()
 
 	return e, nil
 }
