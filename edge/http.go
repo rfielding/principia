@@ -54,12 +54,12 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		r.Header.Get("Upgrade") == "websocket"
 	logger.Debug("%s %s wantsWebsockets=%t", r.Method, r.RequestURI, wantsWebsockets)
 
-	// Find local listeners - we modify the url
-	for _, lsn := range e.Listeners {
-		expectedServicePrefix := fmt.Sprintf("/%s/", lsn.Name)
+	// Find local spawns - we modify the url
+	for _, spawn := range e.Spawns {
+		expectedServicePrefix := fmt.Sprintf("/%s/", spawn.Name)
 		if strings.HasPrefix(r.RequestURI, expectedServicePrefix) {
-			to := fmt.Sprintf("127.0.0.1:%d", lsn.Port)
-			logger.Debug("listener: GET %s -> %s %s", r.RequestURI, lsn.Name, to)
+			to := fmt.Sprintf("127.0.0.1:%d", spawn.Port)
+			logger.Debug("listener: GET %s -> %s %s", r.RequestURI, spawn.Name, to)
 			if wantsWebsockets {
 				// Dial the destination in plaintext, with no websocket headers
 				dest_conn, err := net.DialTimeout("tcp", to, 10*time.Second)
@@ -79,7 +79,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				defer src_conn.Close()
 				e.wsTransport(rw, dest_conn)
 			} else {
-				path := "/" + r.RequestURI[2+len(lsn.Name):]
+				path := "/" + r.RequestURI[2+len(spawn.Name):]
 				url := fmt.Sprintf("http://%s%s", to, path)
 				req, err := http.NewRequest(r.Method, url, r.Body)
 				if err != nil {

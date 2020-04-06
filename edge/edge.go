@@ -43,6 +43,7 @@ type Peer struct {
 	ExpiresAt time.Time
 }
 
+// Command is the most important kind of Spawn
 type Command struct {
 	Cmd       []string
 	Env       []string
@@ -53,14 +54,14 @@ type Command struct {
 	Running   *exec.Cmd
 	Static    string
 	Server    *http.Server
-	EditFn    func(lsn *Listener)
+	EditFn    func(lsn *Spawn)
 	HttpCheck string
 }
 
 // Listener is a spawned process that exposes a port
 // to be reachable within the network
 // Listeners are removed when their Cmd dies
-type Listener struct {
+type Spawn struct {
 	// Almost always bound to 127.0.0.1:port
 	Bind string
 	Port Port
@@ -82,13 +83,16 @@ type Tunnel struct {
 // Edge is pointed to by Peer, and contains the reverse proxy to
 // spawned Listener objects
 type Edge struct {
-	Name            string
+	// The name is how reverse proxy binds and load balances us
+	Name string
+	// Default is 0.0.0.0
+	Bind string
+	// We can use a Host that will be NAT, as long as Port is same at NAT and inside.
 	Host            string
-	Bind            string
 	Port            Port
 	PortSidecar     Port
 	Logger          common.Logger
-	Listeners       []Listener
+	Spawns          []Spawn
 	DefaultLease    time.Duration
 	Peers           []Peer
 	Tunnels         []Tunnel
@@ -148,7 +152,7 @@ func (e *Edge) CheckAvailability() *Availability {
 	logger := e.Logger.Push("Available")
 	available := make(map[string]*Service)
 	// These are locally implemented
-	for _, lsn := range e.Listeners {
+	for _, lsn := range e.Spawns {
 		available[lsn.Name] = &Service{
 			Endpoint: fmt.Sprintf("127.0.0.1:%d", lsn.Port),
 			Expose:   lsn.Expose,
@@ -214,7 +218,7 @@ func (e *Edge) CheckAvailability() *Availability {
 }
 
 // Tells us to listen internally on a port
-func (e *Edge) Spawn(lsn Listener) error {
+func (e *Edge) Spawn(lsn Spawn) error {
 	if lsn.Name == "" {
 		return fmt.Errorf("We must name spawned items")
 	}
@@ -299,7 +303,7 @@ func (e *Edge) Spawn(lsn Listener) error {
 	}()
 	_ = <-ready
 
-	e.Listeners = append(e.Listeners, lsn)
+	e.Spawns = append(e.Spawns, lsn)
 	return nil
 }
 
@@ -346,7 +350,7 @@ func (e *Edge) Close() error {
 			tunnel.Listener.Close()
 		}
 	}
-	for _, lsn := range e.Listeners {
+	for _, lsn := range e.Spawns {
 		if lsn.Run.Running != nil {
 			lsn.Run.Running.Process.Kill()
 		}
@@ -382,8 +386,8 @@ func Start(e *Edge) (*Edge, error) {
 		e.Name = fmt.Sprintf("%s:%d", e.Host, e.Port)
 	}
 	e.Logger = common.NewLogger(fmt.Sprintf("%s", e.Name))
-	e.Listeners = make([]Listener, 0)
-	e.Listeners = append(e.Listeners, Listener{
+	e.Spawns = make([]Spawn, 0)
+	e.Spawns = append(e.Spawns, Spawn{
 		Bind: "127.0.0.1",
 		Port: e.PortSidecar,
 		Name: "sidecarInternal",

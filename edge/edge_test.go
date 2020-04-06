@@ -93,10 +93,10 @@ func TestEdge(t *testing.T) {
 			TODO: wait until port can be reached
 	*/
 
-	TryTest(t, eDB.Spawn(edge.Listener{
+	TryTest(t, eDB.Spawn(edge.Spawn{
 		Name: "eDB_eWeb",
 		Run: edge.Command{
-			EditFn: func(lsn *edge.Listener) {
+			EditFn: func(lsn *edge.Spawn) {
 				lsn.Run.Cmd[5] = fmt.Sprintf("127.0.0.1:%d:5984", lsn.Port)
 			},
 			Stdout: ioutil.Discard,
@@ -116,10 +116,10 @@ func TestEdge(t *testing.T) {
 	}))
 	testLogger.Info("Available eDB:%d %s", eDB.Port, common.AsJsonPretty(eDB.CheckAvailability().Available))
 
-	TryTest(t, mongo.Spawn(edge.Listener{
+	TryTest(t, mongo.Spawn(edge.Spawn{
 		Name: "mongo_eweb",
 		Run: edge.Command{
-			EditFn: func(lsn *edge.Listener) {
+			EditFn: func(lsn *edge.Spawn) {
 				lsn.Run.Cmd[5] = fmt.Sprintf("127.0.0.1:%d:27017", lsn.Port)
 			},
 			Stdout: ioutil.Discard,
@@ -137,7 +137,7 @@ func TestEdge(t *testing.T) {
 	}))
 	testLogger.Info("Available mongo:%s %s", mongo.Port, common.AsJsonPretty(mongo.CheckAvailability().Available))
 
-	TryTest(t, eAuth1.Spawn(edge.Listener{
+	TryTest(t, eAuth1.Spawn(edge.Spawn{
 		Name:        "eAuth",
 		PortIntoEnv: "EAUTH_PORT",
 		Run: edge.Command{
@@ -145,7 +145,7 @@ func TestEdge(t *testing.T) {
 		},
 	}))
 
-	TryTest(t, eAuth2.Spawn(edge.Listener{
+	TryTest(t, eAuth2.Spawn(edge.Spawn{
 		Name:        "eAuth",
 		PortIntoEnv: "EAUTH_PORT",
 		Run: edge.Command{
@@ -154,7 +154,7 @@ func TestEdge(t *testing.T) {
 	}))
 
 	// Spawn the web server talking to the db
-	TryTest(t, eWeb.Spawn(edge.Listener{
+	TryTest(t, eWeb.Spawn(edge.Spawn{
 		Name:   "eWeb",
 		Expose: true,
 		Run: edge.Command{
