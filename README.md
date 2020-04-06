@@ -199,7 +199,7 @@ Tunnels
 
 Tunnels are implemented as WebSockets.  A WebSocket is a TCP connection, with an http header sequence pre-pended to it:
 
-[websocket.png](websocket.png)
+![websocket.png](websocket.png)
 
 If I tcp connect to the sidecar, by default it is presumed to be an http-compatible app.  That means that the header sequence looks like this:
 
