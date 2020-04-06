@@ -13,6 +13,16 @@ import (
 	"github.com/rfielding/principia/edge"
 )
 
+func TestWSKey(t *testing.T) {
+	stdKey := "dGhlIHNhbXBsZSBub25jZQ=="
+	stdAccept := edge.WsSecWebSocketAccept(stdKey)
+	if stdAccept != "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=" {
+		t.FailNow()
+	}
+	stdKey = edge.WsSecWebSocketKey()
+	fmt.Printf("%s\n", stdKey)
+}
+
 func TryTest(t *testing.T, err error) {
 	if err != nil {
 		t.Logf("Failed test: %v", err)

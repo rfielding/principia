@@ -2,9 +2,12 @@ package edge
 
 import (
 	"bufio"
+	"crypto/sha1"
 	"crypto/tls"
+	"encoding/base64"
 	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"net/http"
 	"strings"
@@ -39,7 +42,7 @@ func (e *Edge) wsHttps(w http.ResponseWriter, r *http.Request, addr string, url 
 	}
 	e.Logger.Debug("tunnel websocket to volunteer %s", addr)
 	// Hijack our incoming to transport the websocket across these
-	wconn, rw, err := e.wsHijack(w)
+	wconn, rw, err := e.wsHijack(w, r)
 	if err != nil {
 		e.LogRet(w, http.StatusInternalServerError, err, "unable to hijack connection: %v", err)
 		return
@@ -47,6 +50,19 @@ func (e *Edge) wsHttps(w http.ResponseWriter, r *http.Request, addr string, url 
 	defer wconn.Close()
 	e.Logger.Debug("transport websocket to volunteer: %s", addr)
 	e.wsTransport(rw, dest_conn)
+}
+
+func WsSecWebSocketKey() string {
+	return base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%d", rand.Int())))
+}
+
+func WsSecWebSocketAccept(key string) string {
+	uuid := "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+	h := sha1.New()
+	io.WriteString(h, key)
+	io.WriteString(h, uuid)
+	v := h.Sum(nil)
+	return base64.StdEncoding.EncodeToString(v[:])
 }
 
 // wsConsumeHeaders is used when we made a TCP connection to a socket
@@ -62,6 +78,9 @@ func (e *Edge) wsConsumeHeaders(addr string, url string, conn net.Conn) error {
 	conn.Write([]byte(fmt.Sprintf("Host: %s\r\n", addr)))
 	conn.Write([]byte("Connection: Upgrade\r\n"))
 	conn.Write([]byte("Upgrade: websocket\r\n"))
+	conn.Write([]byte(fmt.Sprintf("Sec-WebSocket-Key: %s\r\n", WsSecWebSocketKey())))
+	conn.Write([]byte("Sec-WebSocket-Protocol: chat, superchat\r\n"))
+	conn.Write([]byte("Sec-WebSocket-Version: 13\r\n"))
 	conn.Write([]byte("\r\n"))
 
 	// Consume the header that comes back, and ensure that it's a 101
@@ -93,7 +112,7 @@ func (e *Edge) wsConsumeHeaders(addr string, url string, conn net.Conn) error {
 
 // wsHijack should be called when we have header values set, and are
 // ready to switch to a TCP socket
-func (e *Edge) wsHijack(w http.ResponseWriter) (net.Conn, *bufio.ReadWriter, error) {
+func (e *Edge) wsHijack(w http.ResponseWriter, r *http.Request) (net.Conn, *bufio.ReadWriter, error) {
 	// Steal the writer body as a 2way socket
 	hijacker, ok := w.(http.Hijacker)
 	if !ok {
@@ -101,6 +120,10 @@ func (e *Edge) wsHijack(w http.ResponseWriter) (net.Conn, *bufio.ReadWriter, err
 	}
 	w.Header().Set("Connection", "Upgrade")
 	w.Header().Set("Upgrade", "websocket")
+	w.Header().Set(
+		"Sec-WebSocket-Accept",
+		WsSecWebSocketAccept(r.Header.Get("Sec-WebSocket-Key")),
+	)
 	w.WriteHeader(101)
 	conn, rw, err := hijacker.Hijack()
 	if err != nil {
