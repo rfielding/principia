@@ -150,3 +150,54 @@ We can reach this page at `/eWeb/`.
 ```
 
 We can go to any edge, and we will get a page back, given that the edge knows about these two services.  In CouchDB, a `GET /` returns some versioning information in json.  So, `GET /eDB_eWeb/` is forwarded to the peer that is handling it, and ultimately sent to CouchDB with the service prefix stripped off, to send `GET /` to CouchDB.
+
+Tunnels
+========
+
+Tunnels are implemented as WebSockets.  A WebSocket is a TCP connection, with an http header sequence pre-pended to it:
+
+If I tcp connect to the sidecar, by default it is presumed to be an http-compatible app.  That means that the header sequence looks like this:
+
+Send to 127.0.0.1:8029 (assume it's the sidecar or edge), and it requires an URL prefix to know where to forward the request, (on to `GET /` at the next hop):
+
+```
+GET /postgres_app/ HTTP/1.1
+Host: 127.0.0.1
+
+```
+Get back:
+
+```
+HTTP/1.1 200 OK
+Date: Sat, 04 Apr 2020 19:02:37 GMT
+Content-Length: 247
+Content-Type: text/plain; charset=utf-8
+
+adsfasdfasdsafd
+```
+
+In this case, the entire protocol is http.  In a WebSocket, the client sends a different startup sequence, and at the end of the header exchange, the socket is just a 2-way TLS connection.
+
+```
+GET /postgres_app/ HTTP/1.1
+Host: 127.0.0.1:8035
+Connection: Upgrade
+Upgrade: websocket
+
+```
+
+And this is the response, due to the connection upgrade to websocket:
+
+```
+HTTP/1.1 101 Switching Protocols
+
+```
+
+And here, instead of our normal sequence of reading a body out of the header, we take the TCP connection, and it is a normal bidirectional connection.  One implementation issue in this is that we only have limited flushing control within the web server.  The write end has a Flush method in the direction of the listener.  So, anything that is going to speak a database protocol, usually won't have these WebSocket headers pre-pended into their connections (though it would be a good idea for compatibility).
+
+So, there is another element to make this work.  In addition to the Edge and Sidecar supporting WebSockets, the sidecar must spawn a Tunnel socket that _strips off_ the WebSockets header.  The WebSockets header exists to multiplex the tunnel through http, so the the destination can figure out what to connect to on the other side.  So, in our code, we have.
+
+- wsHttps - which allows us to just open up a socket and treat it like normal TLS tcp sockets.  We can speak literal MongoDB protocol into it.
+- wsConsumeHeaders - This function will take a TCP connection, and append the GET and 101 status onto it.
+- wsHijack - is the function that switches from http to the raw TCP connection, which will transport what is literally send and recieved into the tunnel socket.
+- wsHijack
