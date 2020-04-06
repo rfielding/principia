@@ -88,23 +88,24 @@ type Edge struct {
 	// Default is 0.0.0.0
 	Bind string
 	// We can use a Host that will be NAT, as long as Port is same at NAT and inside.
-	Host            string
-	Port            Port
-	PortSidecar     Port
-	Logger          common.Logger
-	Spawns          []Spawn
-	DefaultLease    time.Duration
-	Peers           []Peer
-	Tunnels         []Tunnel
-	CertPath        string
-	KeyPath         string
-	TrustPath       string
-	HttpClient      *http.Client
-	TLSClientConfig *tls.Config
-	InternalServer  http.Server
-	ExternalServer  http.Server
-	Availability    *Availability
-	Done            chan bool
+	Host              string
+	Port              Port
+	PortSidecar       Port
+	Logger            common.Logger
+	Spawns            []Spawn
+	DefaultLease      time.Duration
+	Peers             []Peer
+	Tunnels           []Tunnel
+	CertPath          string
+	KeyPath           string
+	TrustPath         string
+	HttpClient        *http.Client
+	TLSClientConfig   *tls.Config
+	InternalServer    http.Server
+	ExternalServer    http.Server
+	Availability      *Availability
+	AvailabilityLease time.Duration
+	Done              chan bool
 }
 
 type Service struct {
@@ -214,7 +215,7 @@ func (e *Edge) CheckAvailability() *Availability {
 	e.Peers = e.Peers[0:i]
 	e.Availability = &Availability{
 		Available: available,
-		ExpiresAt: time.Now().Add(5 * time.Second),
+		ExpiresAt: time.Now().Add(e.AvailabilityLease),
 	}
 	return e.Availability
 }
@@ -412,8 +413,12 @@ func Start(e *Edge) (*Edge, error) {
 		Port: e.PortSidecar,
 		Name: "sidecarInternal",
 	})
-
-	e.DefaultLease = time.Duration(30 * time.Second)
+	if e.DefaultLease == 0 {
+		e.DefaultLease = time.Duration(30 * time.Second)
+	}
+	if e.AvailabilityLease == 0 {
+		e.AvailabilityLease = time.Duration(5 * time.Second)
+	}
 	e.Peers = make([]Peer, 0)
 	e.Tunnels = make([]Tunnel, 0)
 
