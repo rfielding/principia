@@ -39,6 +39,8 @@ eDB, err := edge.Start(&edge.Edge{
 })
 ```
 
+> see edge/edge_test.go
+
 Once this edge exists, we can spawn commands in it, very much like `ssh`.  In this example, we are:
 
 - Spawning a process and naming it so that a reverse proxy of `/eDB_eWeb/` can reach it.
@@ -201,3 +203,5 @@ So, there is another element to make this work.  In addition to the Edge and Sid
 - wsConsumeHeaders - This function will take a TCP connection, and append the GET and 101 status onto it.
 - wsHijack - is the function that switches from http to the raw TCP connection, which will transport what is literally send and recieved into the tunnel socket.
 - wsHijack
+
+> see edge/ws.go
