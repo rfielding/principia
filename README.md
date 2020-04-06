@@ -261,7 +261,8 @@ eDB
 ```
 
 Here, we start up a bunch of Edge objects.  Remember that the Edge functions as an edge proxy on the front (0.0.0.0) with a TLS cert, and as a sidecar proxy on the back (127.0.0.1).  Note that we did not specify which port it would spawn on, so it just chose consecutive non-conflicting ports.  They could well be random ports that we manage to spawn without a conflict as well.
-```json
+
+```
 127.0.0.1:8022|INFO|: edge.Start: https://127.0.0.1:8022
 127.0.0.1:8022|INFO|: edge.Start: http://127.0.0.1:8023
 127.0.0.1:8024|INFO|: edge.Start: https://127.0.0.1:8024
@@ -273,7 +274,9 @@ Here, we start up a bunch of Edge objects.  Remember that the Edge functions as 
 localhost:8030|INFO|: edge.Start: https://localhost:8030
 localhost:8030|INFO|: edge.Start: http://127.0.0.1:8031
 ```
+
 Here some commands got spawned.  One sidecar launched `eDB_eWeb`, which happens to be a CouchDB container.  Notice that it is not running on the standard CouchDB port.  We did not specify which port it should run on, so it was put on a non-conflicting port.
+
 ```
 127.0.0.1:8022|INFO|: edge.Spawn: 
 integrationTest|INFO|: Available eDB:8022 {
@@ -294,7 +297,9 @@ integrationTest|INFO|:     "Endpoint": "127.0.0.1:8029"
 integrationTest|INFO|:   }
 integrationTest|INFO|: }
 ```
+
 Note that on one, we gave it the Unix tree command, rather than a web server, just to show that there is nothing docker-specific about this project.
+
 ```
 127.0.0.1:8024|INFO|: edge.Spawn: 
 127.0.0.1:8026|INFO|: edge.Spawn: 
@@ -309,7 +314,9 @@ localhost:8030|INFO|: spawn static: http://127.0.0.1:8036 vs .
 ├── test_key.pem
 └── ws.go
 ```
+
 And similarly, one spawned `ls -al`.  _Note that future behavior will take down a Listener when it finishes before the Edge is done_.
+
 ```
 0 directories, 7 files
 total 96
@@ -324,7 +331,9 @@ drwxr-xr-x  10 rfielding  staff    320 Apr  5 21:39 ..
 -rw-r--r--   1 rfielding  staff   3272 Apr  4 19:46 test_key.pem
 -rw-r--r--   1 rfielding  staff   5614 Apr  5 00:01 ws.go
 ```
+
 Here, we told Edge 8030 about some peer Edges.  It can now reach them over TLS.  We also have app dependencies on the tunnels from inside of our app.  (IE: the spawned servewr will need to use CouchDB drivers to talk to the database.)
+
 ```
 localhost:8030|INFO|: edge.Peer: https://127.0.0.1:8024
 localhost:8030|INFO|: edge.Peer: https://127.0.0.1:8026
@@ -333,7 +342,9 @@ localhost:8030|INFO|: e.Tunnel: eDB_eWeb 8037
 localhost:8030|INFO|: e.Tunnel: eAuth 8038
 localhost:8030|INFO|: e.Tunnel: mongo_eweb 8039
 ```
+
 More programs are spawned.  All that matters to the outside is what they are named.  Peers care about who is handling what, so Endpoint and Volunteers will show up as well.
+
 ```
 integrationTest|INFO|: Available eAuth1:8024 {
 integrationTest|INFO|:   "eAuth": {
@@ -396,7 +407,9 @@ integrationTest|INFO|:     "Endpoint": "127.0.0.1:8031"
 integrationTest|INFO|:   }
 integrationTest|INFO|: }
 ```
+
 Here, we hit the Edge to talk to CouchDB.  A `GET /` against CouchDB returns version information.
+
 ```
 localhost:8030|DEBUG|: GET /eDB_eWeb/ wantsWebsockets=false
 localhost:8030|DEBUG|: volunteer: GET https://127.0.0.1:8022/eDB_eWeb/ -> 127.0.0.1:8022
@@ -411,8 +424,10 @@ localhost:8030|DEBUG|: volunteer: GET https://127.0.0.1:8022/eDB_eWeb/ -> 127.0.
 integrationTest|INFO|: Got: {"couchdb":"Welcome","version":"3.0.0","git_sha":"03a77db6c","uuid":"aec65a4a7f59b6bdfb8e71b589f24ab3","features":["access-ready","partitioned","pluggable-storage-engines","reshard","scheduler"],"vendor":{"name":"The Apache Software Foundation"}}
 integrationTest|INFO|: 
 ```
+
 We do the same to see that we get html content back, when `/eWeb/` is stripped down and passed as `/` to the eWeb service (a static web server with an index.html file)
-``
+
+```
 localhost:8030|DEBUG|: GET /eWeb/ wantsWebsockets=false
 localhost:8030|DEBUG|: listener: GET /eWeb/ -> eWeb 127.0.0.1:8036
 integrationTest|INFO|: Got: <html>
@@ -424,8 +439,10 @@ integrationTest|INFO|:   </body>
 integrationTest|INFO|: </html>
 integrationTest|INFO|: 
 ```
+
 This is the important bit, where the test hits a local tunnel to verify that it hits CouchDB.
 We then do the same to a remote tunnel to verify that it looks identical, and also hits CouchDB.
+
 ```
 integrationTest|INFO|: GET http://127.0.0.1:8032/ via local websocket
 integrationTest|INFO|: {"couchdb":"Welcome","version":"3.0.0","git_sha":"03a77db6c","uuid":"aec65a4a7f59b6bdfb8e71b589f24ab3","features":["access-ready","partitioned","pluggable-storage-engines","reshard","scheduler"],"vendor":{"name":"The Apache Software Foundation"}}
@@ -449,7 +466,9 @@ localhost:8030|DEBUG|: tunnel consuming websocket to sidecar 127.0.0.1:8031
 integrationTest|INFO|: {"couchdb":"Welcome","version":"3.0.0","git_sha":"03a77db6c","uuid":"aec65a4a7f59b6bdfb8e71b589f24ab3","features":["access-ready","partitioned","pluggable-storage-engines","reshard","scheduler"],"vendor":{"name":"The Apache Software Foundation"}}
 integrationTest|INFO|: 
 ```
+
 Here, we emit the port that the eWeb https port came up on.  All Edge objects act as edge proxies.  This one knows about all dependent services.  It has an index.html in it, and a reference to a webservice.  From the browser, it all looks like one simple web server.  However note that Chrome may give you some trouble about its certificate (I allowed it on Linux Chrome, but OSX Chrome doesn't like it).
+
 ```
 integrationTest|INFO|: https://localhost:8030/eWeb/
 ```
