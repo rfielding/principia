@@ -89,6 +89,14 @@ func TestEdge(t *testing.T) {
 	TryTest(t, err)
 	defer mongo.Close()
 
+	redis_eWeb, err := edge.Start(&edge.Edge{
+		CertPath:  certPath,
+		KeyPath:   keyPath,
+		TrustPath: trustPath,
+	})
+	TryTest(t, err)
+	defer redis_eWeb.Close()
+
 	eWeb, err := edge.Start(&edge.Edge{
 		Host:      "localhost",
 		CertPath:  certPath,
@@ -152,6 +160,28 @@ func TestEdge(t *testing.T) {
 		testLogger.Info("Available mongo:%s %s", d.Port, common.AsJsonPretty(d.CheckAvailability().Available))
 	}
 
+	TryTest(t, redis_eWeb.Exec(edge.Spawn{
+		Name: "redis_eWeb",
+		Run: edge.Command{
+			Override: func(spawn *edge.Spawn) {
+				spawn.Run.Cmd[4] = fmt.Sprintf("127.0.0.1:%d:6379", spawn.Port)
+				spawn.Run.Cmd[6] = fmt.Sprintf("%s_%d", spawn.Name, 0)
+			},
+			Stdout: ioutil.Discard,
+			Stderr: ioutil.Discard,
+			Cmd: []string{
+				"docker",
+				"run",
+				"--rm",
+				"-p", "127.0.0.1:6379:6379",
+				"--name", "redis_eWeb",
+				"redis",
+			},
+			Dir: ".",
+		},
+	}))
+	testLogger.Info("Available redis:%s %s", redis_eWeb.Port, common.AsJsonPretty(redis_eWeb.CheckAvailability().Available))
+
 	TryTest(t, eAuth1.Exec(edge.Spawn{
 		Name:        "eAuth",
 		PortIntoEnv: "EAUTH_PORT",
@@ -186,19 +216,23 @@ func TestEdge(t *testing.T) {
 	eDB_eWeb_port := edge.AllocPort()
 	eAuth_port := edge.AllocPort()
 	mongo_port := edge.AllocPort()
+	redis_port := edge.AllocPort()
 	eWeb.Peer(eDB.Host, eDB.Port)
 	eWeb.Peer(eAuth1.Host, eAuth1.Port)
 	eWeb.Peer(eAuth2.Host, eAuth2.Port)
 	eWeb.Peer(mongo.Host, mongo.Port)
+	eWeb.Peer(redis_eWeb.Host, redis_eWeb.Port)
 	eWeb.Tunnel("eDB_eWeb", eDB_eWeb_port)
 	eWeb.Tunnel("eAuth", eAuth_port)
 	eWeb.Tunnel("mongo_eWeb", mongo_port)
+	eWeb.Tunnel("redis_eWeb", redis_port)
 
 	// Log info about it
 	testLogger.Info("Available eAuth1:%d %s", eAuth1.Port, common.AsJsonPretty(eAuth1.CheckAvailability().Available))
 	testLogger.Info("Available eAuth2:%d %s", eAuth2.Port, common.AsJsonPretty(eAuth2.CheckAvailability().Available))
 	testLogger.Info("Available mongo:%d %s", mongo.Port, common.AsJsonPretty(mongo.CheckAvailability().Available))
 	testLogger.Info("Available eDB:%d %s", eDB.Port, common.AsJsonPretty(eDB.CheckAvailability().Available))
+	testLogger.Info("Available redis_eWeb:%d %s", redis_eWeb.Port, common.AsJsonPretty(redis_eWeb.CheckAvailability().Available))
 	testLogger.Info("Available eWeb:%d %s", eWeb.Port, common.AsJsonPretty(eWeb.CheckAvailability().Available))
 
 	eDB_eWeb_data, err := eDB.GetFromPeer(eWeb.PeerName(), "/eDB_eWeb/")

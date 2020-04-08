@@ -146,11 +146,12 @@ func (e *Edge) wsHijack(w http.ResponseWriter, r *http.Request, wsKey string) (n
 
 // wsTransport will block until up and down are both drained
 func (e *Edge) wsTransport(up *bufio.ReadWriter, down net.Conn) {
+	downw := bufio.NewWriter(down)
 	// Transport data between two points, and stall until it is done.
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		buf := make([]byte, 1024)
+		buf := make([]byte, 32*1024)
 		for {
 			written, err := up.Read(buf)
 			if err == io.EOF {
@@ -161,14 +162,15 @@ func (e *Edge) wsTransport(up *bufio.ReadWriter, down net.Conn) {
 				e.Logger.Error("unable to read buf up: %v", err)
 				break
 			}
-			written, err = down.Write(buf[0:written])
+			written, err = downw.Write(buf[0:written])
 			if err != nil {
 				e.Logger.Error("unable to write buffer down: %v", err)
 			}
+			downw.Flush()
 		}
 		wg.Done()
 	}()
-	buf := make([]byte, 1024)
+	buf := make([]byte, 32*1024)
 	for {
 		written, err := down.Read(buf)
 		if err == io.EOF {
