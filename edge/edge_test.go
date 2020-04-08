@@ -105,12 +105,13 @@ func TestEdge(t *testing.T) {
 
 	theDBs := []*edge.Edge{eDB, mongo}
 
-	for _, d := range theDBs {
+	for i, d := range theDBs {
 		TryTest(t, d.Exec(edge.Spawn{
 			Name: "eDB_eWeb",
 			Run: edge.Command{
-				Override: func(e *edge.Edge, spawn *edge.Spawn) {
+				Override: func(spawn *edge.Spawn) {
 					spawn.Run.Cmd[4] = fmt.Sprintf("127.0.0.1:%d:5984", spawn.Port)
+					spawn.Run.Cmd[6] = fmt.Sprintf("%s_%d", spawn.Name, i)
 				},
 				Stdout: ioutil.Discard,
 				Stderr: ioutil.Discard,
@@ -119,6 +120,7 @@ func TestEdge(t *testing.T) {
 					"run",
 					"--rm",
 					"-p", "127.0.0.1:5984:5984",
+					"--name", "eDB_eWeb",
 					"-e", "COUCHDB_USER=admin",
 					"-e", "COUCHDB_PASSWORD=password",
 					"couchdb",
@@ -130,8 +132,9 @@ func TestEdge(t *testing.T) {
 		TryTest(t, d.Exec(edge.Spawn{
 			Name: "mongo_eWeb",
 			Run: edge.Command{
-				Override: func(e *edge.Edge, spawn *edge.Spawn) {
+				Override: func(spawn *edge.Spawn) {
 					spawn.Run.Cmd[4] = fmt.Sprintf("127.0.0.1:%d:27017", spawn.Port)
+					spawn.Run.Cmd[6] = fmt.Sprintf("%s_%d", spawn.Name, i)
 				},
 				Stdout: ioutil.Discard,
 				Stderr: ioutil.Discard,
@@ -140,6 +143,7 @@ func TestEdge(t *testing.T) {
 					"run",
 					"--rm",
 					"-p", "127.0.0.1:27017:27017",
+					"--name", "mongo_eWeb",
 					"mongo",
 				},
 				Dir: ".",
@@ -152,7 +156,8 @@ func TestEdge(t *testing.T) {
 		Name:        "eAuth",
 		PortIntoEnv: "EAUTH_PORT",
 		Run: edge.Command{
-			Cmd: []string{"sleep", "50"},
+			Cmd:       []string{"sleep", "50"},
+			SkipCheck: true,
 		},
 	}))
 
@@ -160,7 +165,8 @@ func TestEdge(t *testing.T) {
 		Name:        "eAuth",
 		PortIntoEnv: "EAUTH_PORT",
 		Run: edge.Command{
-			Cmd: []string{"sleep", "30"},
+			Cmd:       []string{"sleep", "30"},
+			SkipCheck: true,
 		},
 	}))
 

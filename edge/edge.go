@@ -54,8 +54,9 @@ type Command struct {
 	Running   *exec.Cmd
 	Static    string
 	Server    *http.Server
-	Override  func(e *Edge, spawn *Spawn)
+	Override  func(spawn *Spawn)
 	HttpCheck string
+	SkipCheck bool
 }
 
 // Listener is a spawned process that exposes a port
@@ -262,7 +263,7 @@ func (e *Edge) Exec(spawn Spawn) error {
 		spawn.Run.Stdin = os.Stdin
 	}
 	if spawn.Run.Override != nil {
-		spawn.Run.Override(e, &spawn)
+		spawn.Run.Override(&spawn)
 	}
 	e.Logger.Info("edge.Spawn: %s", common.AsJsonPretty(spawn))
 	// Actually execute the command
@@ -309,31 +310,42 @@ func (e *Edge) Exec(spawn Spawn) error {
 		}
 	}
 	// Wait until the port is ready
-	ready := make(chan bool)
-	go func() {
-		for {
-			if spawn.Run.HttpCheck == "" {
+	if !spawn.Run.SkipCheck {
+		ready := make(chan bool)
+		go func() {
+			for {
+				// If it isn't an http check, then at least do a TCP check
+				if spawn.Run.HttpCheck == "" {
+					conn, err := net.DialTimeout("tcp", spawn.Address(), time.Duration(1*time.Second))
+					if err != nil {
+						e.Logger.Info("%s is not ready: %v", spawn.Address(), err)
+						time.Sleep(1 * time.Second)
+						continue
+					}
+					conn.Close()
+					ready <- true
+					return
+				}
+				url := fmt.Sprintf("http://%s", spawn.Address())
+				req, _ := http.NewRequest("GET", url, nil)
+				cl := http.Client{}
+				res, err := cl.Do(req)
+				if err != nil {
+					e.Logger.Info("%s not ready: %v", url, err)
+					time.Sleep(1 * time.Second)
+					continue
+				}
+				res.Body.Close()
+				if res.StatusCode != 200 {
+					continue
+				}
+				e.Logger.Info("%s is ready!", url)
 				ready <- true
 				return
 			}
-			url := fmt.Sprintf("http://%s", spawn.Address())
-			req, _ := http.NewRequest("GET", url, nil)
-			cl := http.Client{}
-			res, err := cl.Do(req)
-			if err != nil {
-				e.Logger.Info("%s not ready: %v", url, err)
-				time.Sleep(1 * time.Second)
-				continue
-			}
-			res.Body.Close()
-			if res.StatusCode != 200 {
-				continue
-			}
-			ready <- true
-			return
-		}
-	}()
-	_ = <-ready
+		}()
+		_ = <-ready
+	}
 
 	e.Spawns = append(e.Spawns, spawn)
 	return nil
