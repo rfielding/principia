@@ -266,7 +266,7 @@ func (e *Edge) Exec(spawn Spawn) error {
 		go func() {
 			err := spawn.Run.Running.Run()
 			if err != nil {
-				e.Logger.Info("failed to spawn cmd for %d: %v", spawn.Port, err)
+				e.Logger.Info("failed to spawn cmd %s for %v: %v", spawn.Run.Cmd, spawn.Port, err)
 			}
 			// When this spawn dies, remove it
 			spawnList := e.Spawns
@@ -310,7 +310,7 @@ func (e *Edge) Exec(spawn Spawn) error {
 			cl := http.Client{}
 			res, err := cl.Do(req)
 			if err != nil {
-				//e.Logger("not ready: %v", err)
+				e.Logger.Info("%s not ready: %v", url, err)
 				time.Sleep(1 * time.Second)
 				continue
 			}
