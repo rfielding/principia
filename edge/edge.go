@@ -62,6 +62,7 @@ type Command struct {
 // to be reachable within the network
 // Listeners are removed when their Cmd dies
 type Spawn struct {
+	Owner *Edge
 	// Almost always bound to 127.0.0.1:port
 	Bind string
 	Port Port
@@ -75,9 +76,18 @@ type Spawn struct {
 }
 
 type Tunnel struct {
+	Owner    *Edge
 	Name     string
 	Port     Port
 	Listener net.Listener
+}
+
+func (t *Tunnel) Address() string {
+	return fmt.Sprintf("%s:%d", t.Owner.HostSidecar, t.Port)
+}
+
+func (s *Spawn) Address() string {
+	return fmt.Sprintf("%s:%d", s.Owner.HostSidecar, s.Port)
 }
 
 // Edge is pointed to by Peer, and contains the reverse proxy to
@@ -223,6 +233,7 @@ func (e *Edge) CheckAvailability() *Availability {
 
 // Tells us to listen internally on a port
 func (e *Edge) Exec(spawn Spawn) error {
+	spawn.Owner = e
 	if spawn.Name == "" {
 		return fmt.Errorf("We must name spawned items")
 	}
@@ -305,7 +316,7 @@ func (e *Edge) Exec(spawn Spawn) error {
 				ready <- true
 				return
 			}
-			url := fmt.Sprintf("http://%s:%d", e.HostSidecar, spawn.Port)
+			url := fmt.Sprintf("http://%s", spawn.Address())
 			req, _ := http.NewRequest("GET", url, nil)
 			cl := http.Client{}
 			res, err := cl.Do(req)
@@ -344,6 +355,7 @@ func (e *Edge) Tunnel(service string, port Port) error {
 		return err
 	}
 	tunnel := Tunnel{
+		Owner:    e,
 		Name:     service,
 		Port:     port,
 		Listener: listener,
