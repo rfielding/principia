@@ -166,6 +166,7 @@ func TestEdge(t *testing.T) {
 			Override: func(spawn *edge.Spawn) {
 				spawn.Run.Cmd[4] = fmt.Sprintf("127.0.0.1:%d:6379", spawn.Port)
 				spawn.Run.Cmd[6] = fmt.Sprintf("%s_%d", spawn.Name, 0)
+				spawn.Run.Cmd[8] = fmt.Sprintf("SIDECAR_INTERNAL=%s", spawn.Owner.SidecarName())
 			},
 			Stdout: ioutil.Discard,
 			Stderr: ioutil.Discard,
@@ -175,6 +176,7 @@ func TestEdge(t *testing.T) {
 				"--rm",
 				"-p", "127.0.0.1:6379:6379",
 				"--name", "redis_eWeb",
+				"-e", "SIDECAR_INTERNAL=127.0.0.1:?",
 				"redis",
 			},
 			Dir: ".",

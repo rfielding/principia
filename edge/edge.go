@@ -274,7 +274,15 @@ func (e *Edge) Exec(spawn Spawn) error {
 		spawn.Run.Running.Stdin = spawn.Run.Stdin
 		spawn.Run.Running.Dir = spawn.Run.Dir
 		commandFix(spawn.Run.Running)
-		spawn.Run.Running.Env = append(os.Environ(), spawn.Run.Env...)
+		spawn.Run.Running.Env = append(
+			os.Environ(),
+			spawn.Run.Env...,
+		)
+		// By default, inject SIDECAR_INTERNAL to point to our sidecar
+		spawn.Run.Running.Env = append(
+			spawn.Run.Running.Env,
+			fmt.Sprintf("SIDECAR_INTERNAL=%s", e.SidecarName()),
+		)
 		go func() {
 			err := spawn.Run.Running.Run()
 			if err != nil {
