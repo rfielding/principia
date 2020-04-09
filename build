@@ -6,8 +6,10 @@ docker stop mongo_eWeb_0
 docker stop mongo_eWeb_1
 docker stop eDB_eWeb_0
 docker stop eDB_eWeb_1
+docker stop redis_eWeb_0
 docker rm mongo_eWeb_0
 docker rm mongo_eWeb_1
 docker rm eDB_eWeb_0
 docker rm eDB_eWeb_1
+docker rm redis_eWeb_0
 (go fmt ./... && cd edge && go test)
