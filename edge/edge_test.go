@@ -214,7 +214,6 @@ func TestEdge(t *testing.T) {
 
 	// Allocate an arbitrary port for the db
 	eDB_eWeb_port := edge.AllocPort()
-	eAuth_port := edge.AllocPort()
 	mongo_port := edge.AllocPort()
 	redis_port := edge.AllocPort()
 	eWeb.Peer(eDB.Host, eDB.Port)
@@ -223,7 +222,6 @@ func TestEdge(t *testing.T) {
 	eWeb.Peer(mongo.Host, mongo.Port)
 	eWeb.Peer(redis_eWeb.Host, redis_eWeb.Port)
 	eWeb.Tunnel("eDB_eWeb", eDB_eWeb_port)
-	eWeb.Tunnel("eAuth", eAuth_port)
 	eWeb.Tunnel("mongo_eWeb", mongo_port)
 	eWeb.Tunnel("redis_eWeb", redis_port)
 
