@@ -160,6 +160,46 @@ func TestEdge(t *testing.T) {
 		testLogger.Info("Available mongo:%s %s", d.Port, common.AsJsonPretty(d.CheckAvailability().Available))
 	}
 
+	TryTest(t, eAuth1.Exec(edge.Spawn{
+		Name:        "eAuth",
+		PortIntoEnv: "EAUTH_PORT",
+		Run: edge.Command{
+			Cmd:       []string{"sleep", "50"},
+			SkipCheck: true,
+		},
+	}))
+
+	TryTest(t, eAuth2.Exec(edge.Spawn{
+		Name:        "eAuth",
+		PortIntoEnv: "EAUTH_PORT",
+		Run: edge.Command{
+			Cmd:       []string{"sleep", "30"},
+			SkipCheck: true,
+		},
+	}))
+
+	// If this app is just passed in a list of peers...
+	eWebPeers := []*edge.Edge{eDB, eAuth1, eAuth2, mongo, redis_eWeb}
+
+	// And declares its tunnels....
+	for _, p := range eWebPeers {
+		eWeb.Peer(p.Host, p.Port)
+	}
+	eWeb.Tunnel("eDB_eWeb", edge.AllocPort())
+	eWeb.Tunnel("mongo_eWeb", edge.AllocPort())
+	eWeb.Tunnel("redis_eWeb", edge.AllocPort())
+
+	// The app can spawn
+	TryTest(t, eWeb.Exec(edge.Spawn{
+		Name: "eWeb",
+		Run: edge.Command{
+			Server: &http.Server{
+				Handler: http.FileServer(http.Dir(".")),
+			},
+			HttpCheck: "/",
+		},
+	}))
+
 	TryTest(t, redis_eWeb.Exec(edge.Spawn{
 		Name: "redis_eWeb",
 		Run: edge.Command{
@@ -183,51 +223,6 @@ func TestEdge(t *testing.T) {
 		},
 	}))
 	testLogger.Info("Available redis:%s %s", redis_eWeb.Port, common.AsJsonPretty(redis_eWeb.CheckAvailability().Available))
-
-	TryTest(t, eAuth1.Exec(edge.Spawn{
-		Name:        "eAuth",
-		PortIntoEnv: "EAUTH_PORT",
-		Run: edge.Command{
-			Cmd:       []string{"sleep", "50"},
-			SkipCheck: true,
-		},
-	}))
-
-	TryTest(t, eAuth2.Exec(edge.Spawn{
-		Name:        "eAuth",
-		PortIntoEnv: "EAUTH_PORT",
-		Run: edge.Command{
-			Cmd:       []string{"sleep", "30"},
-			SkipCheck: true,
-		},
-	}))
-
-	// Spawn the web server talking to the db
-	TryTest(t, eWeb.Exec(edge.Spawn{
-		Name:   "eWeb",
-		Expose: true,
-		Run: edge.Command{
-			Server: &http.Server{
-				Handler: http.FileServer(http.Dir(".")),
-			},
-			HttpCheck: "/",
-		},
-	}))
-
-	//time.Sleep(10 * time.Second)
-
-	// Allocate an arbitrary port for the db
-	eDB_eWeb_port := edge.AllocPort()
-	mongo_port := edge.AllocPort()
-	redis_port := edge.AllocPort()
-	eWeb.Peer(eDB.Host, eDB.Port)
-	eWeb.Peer(eAuth1.Host, eAuth1.Port)
-	eWeb.Peer(eAuth2.Host, eAuth2.Port)
-	eWeb.Peer(mongo.Host, mongo.Port)
-	eWeb.Peer(redis_eWeb.Host, redis_eWeb.Port)
-	eWeb.Tunnel("eDB_eWeb", eDB_eWeb_port)
-	eWeb.Tunnel("mongo_eWeb", mongo_port)
-	eWeb.Tunnel("redis_eWeb", redis_port)
 
 	// Log info about it
 	testLogger.Info("Available eAuth1:%d %s", eAuth1.Port, common.AsJsonPretty(eAuth1.CheckAvailability().Available))
