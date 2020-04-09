@@ -207,7 +207,9 @@ func TestEdge(t *testing.T) {
 		Name:   "eWeb",
 		Expose: true,
 		Run: edge.Command{
-			Static:    ".",
+			Server: &http.Server{
+				Handler: http.FileServer(http.Dir(".")),
+			},
 			HttpCheck: "/",
 		},
 	}))

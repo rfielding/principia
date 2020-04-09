@@ -52,7 +52,6 @@ type Command struct {
 	Stderr    io.Writer
 	Stdin     io.Reader
 	Running   *exec.Cmd
-	Static    string
 	Server    *http.Server
 	Override  func(spawn *Spawn)
 	HttpCheck string
@@ -300,13 +299,10 @@ func (e *Edge) Exec(spawn Spawn) error {
 			e.Spawns = spawnList
 		}()
 	} else {
-		if len(spawn.Run.Static) > 0 {
+		if spawn.Run.Server != nil {
 			bind := fmt.Sprintf("%s:%d", e.BindSidecar, spawn.Port)
-			e.Logger.Info("spawn static: http://%s vs %s", bind, spawn.Run.Static)
-			spawn.Run.Server = &http.Server{
-				Addr:    bind,
-				Handler: http.FileServer(http.Dir(spawn.Run.Static)),
-			}
+			spawn.Run.Server.Addr = bind
+			e.Logger.Info("spawn handler at http://%s", bind)
 			go func() {
 				err := spawn.Run.Server.ListenAndServe()
 				if err != nil {
