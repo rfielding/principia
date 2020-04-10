@@ -1,0 +1,7 @@
+#!/bin/bash
+
+echo https://localhost:8022/gm_data/static/ui/index.html
+sleep 5
+
+## beware... internally, main.go uses host.docker.internal, which does not work on old docker versions
+docker stop gm_data_0 ; docker rm gm_data_0 ; docker stop mongo_data_0; docker rm mongo_data_0; docker stop jwt_0; docker rm jwt_0; go run main.go
