@@ -114,7 +114,7 @@ func launchData(e *edge.Edge) error {
 					"-p", "127.0.0.1:8181:8181",
 					"--name", "gm_data",
 					"--network", "principia",
-					"-e", "CLIENT_JWT_ENDPOINT_ADDRESS=host.docker.internal",
+					"-e", "CLIENT_JWT_ENDPOINT_ADDRESS=host.docker.internal", // host.docker.internal may not work in your version of docker!
 					"-e", "CLIENT_JWT_ENDPOINT_PORT=8023",
 					"-e", "CLIENT_JWT_ENDPOINT_PREFIX=/jwt",
 					"-e", "GMDATA_NAMESPACE=world",
