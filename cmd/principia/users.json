@@ -1,0 +1,294 @@
+{
+  "users": [
+    {
+      "label": "CN=quickstart,OU=Engineering,O=Decipher Technology Studios,L=Alexandria,ST=Virginia,C=US",
+      "values": {
+        "userDN": [
+          "CN=quickstart,OU=Engineering,O=Decipher Technology Studios,L=Alexandria,ST=Virginia,C=US"
+        ],
+        "email": [
+          "quickstart@deciphernow.com",
+          "localuser@deciphernow.com"
+        ],
+        "org": [
+          "www.deciphernow.com", "ieee"
+        ],
+        "privilege": [
+          "root", "readonly"
+        ],
+        "projects": [
+          "gmdatax", "jwt-server"
+        ],
+        "citizenship": [
+          "US"
+        ],
+        "age": [
+          "adult"
+        ]
+      }
+    },    
+    {
+      "label": "CN=localhost,OU=Engineering,O=Decipher Technology Studios,L=Alexandria,ST=Virginia,C=US",
+      "values": {
+        "userDN": [
+          "CN=localhost,OU=Engineering,O=Decipher Technology Studios,L=Alexandria,ST=Virginia,C=US"
+        ],
+        "email": [
+          "localuser@deciphernow.com"
+        ],
+        "org": [
+          "www.deciphernow.com", "ieee"
+        ],
+        "privilege": [
+          "root", "readonly"
+        ],
+        "projects": [
+          "gmdatax", "jwt-server"
+        ],
+        "citizenship": [
+          "US"
+        ],
+        "age": [
+          "adult"
+        ]
+      }
+    },    
+    {
+      "label": "CN=localuser,OU=Engineering,O=Decipher Technology Studios,L=Alexandria,ST=Virginia,C=US",
+      "values": {
+        "userDN": [
+          "CN=localuser,OU=Engineering,O=Decipher Technology Studios,L=Alexandria,ST=Virginia,C=US"
+        ],
+        "email": [
+          "localuser@deciphernow.com","rrr00bb@facebook.com"
+        ],
+        "org": [
+          "www.deciphernow.com", "ieee"
+        ],
+        "privilege": [
+          "root", "readonly"
+        ],
+        "projects": [
+          "gmdatax", "jwt-server"
+        ],
+        "citizenship": [
+          "US"
+        ],
+        "age": [
+          "adult"
+        ]
+      }
+    },
+    {
+      "label": "CN=rob,OU=Engineering,O=Decipher Technology Studios,L=Alexandria,ST=Virginia,C=US",
+      "values": {
+        "userDN": [
+          "CN=rob,OU=Engineering,O=Decipher Technology Studios,L=Alexandria,ST=Virginia,C=US"
+        ],
+        "email": [
+          "rob.fielding@deciphernow.com", "rob.fielding@gmail.com"
+        ],
+        "org": [
+          "www.deciphernow.com", "wizdom"
+        ],
+        "projects": [
+          "gmdatax", "jwt-server"
+        ],
+        "citizenship": [
+          "US"
+        ],
+        "age": [
+          "adult"
+        ]
+      }
+    },
+    {
+      "label": "CN=parth,OU=Engineering,O=Decipher Technology Studios,L=Alexandria,ST=Virginia,C=US",
+      "values": {
+        "userDN": [
+          "CN=parth,OU=Engineering,O=Decipher Technology Studios,L=Alexandria,ST=Virginia,C=US"
+        ],
+        "email": [
+          "parth.shah@deciphernow.com"
+        ],
+        "org": [
+          "www.deciphernow.com"
+        ],
+        "projects": [
+          "gmdatax", "jwt-server"
+        ],
+        "citizenship": [
+          "US"
+        ],
+        "age": [
+          "adult"
+        ]
+      }
+    },
+    {
+      "label": "CN=martin,OU=Engineering,O=Decipher Technology Studios,L=Alexandria,ST=Virginia,C=US",
+      "values": {
+        "userDN": [
+          "CN=martin,OU=Engineering,O=Decipher Technology Studios,L=Alexandria,ST=Virginia,C=US"
+        ],
+        "email": [
+          "martin.terskin@deciphernow.com"
+        ],
+        "org": [
+          "www.deciphernow.com", "jsdevs", "mlai"
+        ],
+        "projects": [
+          "gmdatax", "gmdataui"
+        ],
+        "citizenship": [
+          "US", "RU"
+        ],
+        "age": [
+          "adult"
+        ]
+      }
+    },
+    {
+      "label": "CN=kyle,OU=Engineering,O=Decipher Technology Studios,L=Alexandria,ST=Virginia,C=US",
+      "values": {
+        "userDN": [
+          "CN=kyle,OU=Engineering,O=Decipher Technology Studios,L=Alexandria,ST=Virginia,C=US"
+        ],
+        "email": [
+          "kyle.felter@deciphernow.com"
+        ],
+        "org": [
+          "www.deciphernow.com"
+        ],
+        "projects": [
+          "gmdatax", "sense"
+        ],
+        "citizenship": [
+          "US"
+        ],
+        "age": [
+          "adult"
+        ]
+      }
+    },
+    {
+      "label": "CN=hiromi,OU=Engineering,O=Decipher Technology Studios,L=Alexandria,ST=Virginia,C=US",
+      "values": {
+        "userDN": [
+          "CN=hiromi,OU=Engineering,O=Decipher Technology Studios,L=Alexandria,ST=Virginia,C=US"
+        ],
+        "email": [
+          "hiromi.suenaga@deciphernow.com"
+        ],
+        "org": [
+          "www.deciphernow.com", "mlai"
+        ],
+        "projects": [
+          "gmdatax", "sense"
+        ],
+        "citizenship": [
+          "JP"
+        ],
+        "age": [
+          "adult"
+        ]
+      }
+    },
+    {
+      "label": "CN=daniel,OU=Engineering,O=Decipher Technology Studios,L=Alexandria,ST=Virginia,C=US",
+      "values": {
+        "userDN": [
+          "CN=daniel,OU=Engineering,O=Decipher Technology Studios,L=Alexandria,ST=Virginia,C=US"
+        ],
+        "email": [
+          "daniel.cox@deciphernow.com"
+        ],
+        "org": [
+          "www.deciphernow.com", "lambda"
+        ],
+        "projects": [
+          "gmdatax", "jwt-server"
+        ],
+        "citizenship": [
+          "US"
+        ],
+        "age": [
+          "adult"
+        ]
+      }
+    },
+    {
+      "label": "CN=jeff,OU=Engineering,O=Decipher Technology Studios,L=Alexandria,ST=Virginia,C=US",
+      "values": {
+        "userDN": [
+          "CN=jeff,OU=Engineering,O=Decipher Technology Studios,L=Alexandria,ST=Virginia,C=US"
+        ],
+        "email": [
+          "jeff.hemminger@deciphernow.com"
+        ],
+        "org": [
+          "www.deciphernow.com", "lambda"
+        ],
+        "projects": [
+          "gmdatax", "jwt-server"
+        ],
+        "citizenship": [
+          "US"
+        ],
+        "age": [
+          "adult"
+        ]
+      }
+    },
+    {
+      "label": "CN=danica,OU=Engineering,O=Decipher Technology Studios,L=Alexandria,ST=Virginia,C=US",
+      "values": {
+        "userDN": [
+          "CN=danica,OU=Engineering,O=Decipher Technology Studios,L=Alexandria,ST=Virginia,C=US"
+        ],
+        "email": [
+          "danica.fielding@deciphernow.com"
+        ],
+        "org": [
+          "holyspirit"
+        ],
+        "projects": [
+          "windtunnel"
+        ],
+        "citizenship": [
+          "US"
+        ],
+        "age": [
+        ]
+      }
+    },
+    {
+      "label": "CN=elsie,OU=Engineering,O=Decipher Technology Studios,L=Alexandria,ST=Virginia,C=US",
+      "values": {
+        "userDN": [
+          "CN=elsie,OU=Engineering,O=Decipher Technology Studios,L=Alexandria,ST=Virginia,C=US"
+        ],
+        "email": [
+          "elsie.a.fielding@yahoo.com"
+        ],
+        "org": [
+          "holyspirit"
+        ],
+        "medical": [
+          "dentalassistant.patient.rob.fielding"
+        ],
+        "clearance": [
+          "virtus"
+        ],
+        "projects": [
+          "windtunnel"
+        ],
+        "citizenship": [
+          "US"
+        ],
+        "age": [
+        ]
+      }
+    }
+  ]
+}

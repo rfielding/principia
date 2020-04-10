@@ -117,6 +117,7 @@ type Edge struct {
 	Availability      *Availability
 	AvailabilityLease time.Duration
 	Done              chan bool
+	HttpFilter        func(req *http.Request)
 }
 
 type Service struct {
@@ -382,7 +383,9 @@ func (e *Edge) Tunnel(service string, port Port) error {
 			tun_conn, err := listener.Accept()
 			if err != nil {
 				e.Logger.Error("unable to spawn: %v", err)
-				continue
+				//continue
+				// Assume that we only fail to Accept when listener dies
+				return
 			}
 			e.wsTunnelTransport(tun_conn, service)
 		}

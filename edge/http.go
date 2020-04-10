@@ -33,6 +33,9 @@ func (e *Edge) Echo(w http.ResponseWriter, r *http.Request) {
 
 // ServeHTTP serves up http for this service
 func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if e.HttpFilter != nil {
+		e.HttpFilter(r)
+	}
 	if strings.HasPrefix(r.RequestURI, "http") {
 		e.LogRet(w, http.StatusBadRequest, nil, "A requestURL must be a fully qualified path, not %s", r.RequestURI)
 		return
