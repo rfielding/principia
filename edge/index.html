@@ -55,20 +55,25 @@
     </script>
   </head>
   <body>
-    <h2 id="myname"></h2>
-    <img id="mypicture"><img>
-    <hr>
-    Services:
-    <ul id=catalog>
-    </ul>
-    <hr>
-    Actions:
-    <ul>
-      <li><a href="/oidc/login?state=/eWeb/">Login</a>
-      <li><a href="/oidc/logout?state=/eWeb/">Logout</a>
-      <li><a href="/oidc/self">self</a>
-      <li><a href="/oidc/claims">claims</a>
-      <li><a href="/available">Services</a>
-    </ul>
+    <div>
+      <span id="myname"></span>
+      <span><img id="mypicture" style="float:right"><img></span>
+    </div>
+    <div style="float:clear">
+      <hr>
+      Actions:
+      <ul>
+        <li><a href="/oidc/login?state=/eWeb/">Login</a>
+        <li><a href="/oidc/logout?state=/eWeb/">Logout</a>
+        <li><a href="/oidc/self">self</a>
+        <li><a href="/oidc/claims">claims</a>
+        <li><a href="/available">Services</a>
+      </ul>
+
+      <hr>
+      Services:
+      <ul id=catalog>
+      </ul>
+    </div>
   </body>
 </html>
