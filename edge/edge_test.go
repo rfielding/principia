@@ -163,7 +163,8 @@ func TestEdge(t *testing.T) {
 
 	for i, d := range theDBs {
 		TryTest(t, d.Exec(edge.Spawn{
-			Name: "eDB_eWeb",
+			Name:   "eDB_eWeb",
+			Expose: true,
 			Run: edge.Command{
 				Override: func(spawn *edge.Spawn) {
 					spawn.Run.Cmd[4] = fmt.Sprintf("127.0.0.1:%d:5984", spawn.Port)
@@ -212,6 +213,7 @@ func TestEdge(t *testing.T) {
 	TryTest(t, err)
 	TryTest(t, eAuth1.Exec(edge.Spawn{
 		Name:        "oidc",
+		Expose:      true,
 		PortIntoEnv: "EAUTH_PORT",
 		KeepPrefix:  true,
 		Run: edge.Command{
@@ -222,6 +224,7 @@ func TestEdge(t *testing.T) {
 	eAuth2Svr, err := auth.NewServer(oauthconfig, eAuth2.Trust, eAuth2.Logger)
 	TryTest(t, eAuth2.Exec(edge.Spawn{
 		Name:        "oidc",
+		Expose:      true,
 		PortIntoEnv: "EAUTH_PORT",
 		KeepPrefix:  true,
 		Run: edge.Command{
@@ -243,7 +246,8 @@ func TestEdge(t *testing.T) {
 
 	// The app can spawn
 	TryTest(t, eWeb.Exec(edge.Spawn{
-		Name: "eWeb",
+		Name:   "eWeb",
+		Expose: true,
 		Run: edge.Command{
 			Server: &http.Server{
 				Handler: http.FileServer(http.Dir(".")),

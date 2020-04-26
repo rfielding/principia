@@ -209,6 +209,9 @@ func (e *Edge) CheckAvailability() *Availability {
 									available[kName].Volunteers,
 									peer.Name(),
 								)
+							if services[kName].Expose {
+								available[kName].Expose = true
+							}
 						}
 					}
 				}

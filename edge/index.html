@@ -18,7 +18,32 @@
         fn("../oidc/self", function(t) {
           var j = JSON.parse(t.responseText);
           document.getElementById("mypicture").src = j["picture"];
-          document.getElementById("myname").textContent = j["name"];
+          var name = j["name"];
+          for (v in j["values"]) {
+            if (v == "role") {
+              for(i in j["values"]["role"]) {
+                name = name + " ["+j["values"]["role"][i]+"]";
+              }
+            }
+          }
+          document.getElementById("myname").textContent = name;
+        });
+
+        fn("../available", function(t) {
+          var j = JSON.parse(t.responseText);
+          var catalog = document.getElementById("catalog");
+          for (item in j) {
+            if (j[item].Expose) {
+              var node = document.createElement("li");
+              var a = document.createElement("a");
+              var t = document.createTextNode(item);
+              a.href = "../" + item + "/";
+              a.innerHtml = item;
+              a.appendChild(t);
+              node.appendChild(a);
+              catalog.appendChild(node);
+            }
+          }
         });
 
       });
@@ -28,6 +53,6 @@
     <h2 id="myname"></h2>
     <img id="mypicture"><img>
     <hr>
-    <a href="../eDB_eWeb/">Try this!</a>
+    <ul id=catalog>
   </body>
 </html>
