@@ -43,49 +43,51 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	e.Logger.Info("handling: %s", r.URL.Path)
 
 	if e.Authenticator != nil {
-		if r.URL.Path == "/oidc/cb" {
-			e.Authenticator.HandleOIDC(w, r)
+		a := e.Authenticator
+		p := a.Config.HasPrefix
+		if r.URL.Path == p+"/cb" {
+			a.HandleOIDC(w, r)
 			return
 		}
-		if r.URL.Path == "/oidc/logout" {
-			e.Authenticator.HandleOIDCLogout(w, r)
+		if r.URL.Path == p+"/logout" {
+			a.HandleOIDCLogout(w, r)
 			return
 		}
 		if r.URL.Query().Get("login") == "true" {
 			// If there is an id_token, then turn it into userpolicy and redirect
 			idTokenCookie, _ := r.Cookie("id_token")
 			if idTokenCookie != nil {
-				e.Authenticator.TurnIDTokenIntoCookies(w, r, idTokenCookie.Value, e.Trust)
+				a.TurnIDTokenIntoCookies(w, r, idTokenCookie.Value, e.Trust)
 				return
 			}
 			e.Logger.Info("login with: %s", r.RequestURI)
 			// Otherwise, just do the whole oidc handshake
-			redirTo := e.Authenticator.ClientConfig.AuthCodeURL(
+			redirTo := a.ClientConfig.AuthCodeURL(
 				strings.Replace(r.RequestURI, "login=true", "login=false", 1),
 			)
 			http.Redirect(w, r, redirTo, http.StatusFound)
 			return
 		}
-		if r.URL.Path == "/oidc/login" {
+		if r.URL.Path == p+"/login" {
 			// If there is an id_token, then turn it into userpolicy and redirect
 			idTokenCookie, _ := r.Cookie("id_token")
 			if idTokenCookie != nil {
-				e.Authenticator.TurnIDTokenIntoCookies(w, r, idTokenCookie.Value, e.Trust)
+				a.TurnIDTokenIntoCookies(w, r, idTokenCookie.Value, e.Trust)
 				return
 			}
 			e.Logger.Info("login with: %s", r.RequestURI)
 			// Otherwise, just do the whole oidc handshake
-			redirTo := e.Authenticator.ClientConfig.AuthCodeURL(
-				r.URL.Query().Get("state"),
+			redirTo := a.ClientConfig.AuthCodeURL(
+				a.Config.RedirectPrefix + r.URL.Query().Get("state"),
 			)
 			http.Redirect(w, r, redirTo, http.StatusFound)
 			return
 		}
-		if r.URL.Path == "/oidc/claims" {
+		if r.URL.Path == p+"/claims" {
 			e.Authenticator.HandleClaims(w, r)
 			return
 		}
-		if r.URL.Path == "/oidc/self" {
+		if r.URL.Path == p+"/self" {
 			e.Authenticator.HandleSelf(w, r)
 			return
 		}

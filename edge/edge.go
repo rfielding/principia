@@ -513,6 +513,7 @@ func Start(e *Edge) (*Edge, error) {
 		authenticator, err := auth.NewAuthenticator(
 			e.OAuthConfig,
 			e.Trust,
+			e.Logger,
 		)
 		if err != nil {
 			return nil, err

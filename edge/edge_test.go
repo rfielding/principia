@@ -93,6 +93,8 @@ func TestEdge(t *testing.T) {
 		OAUTH2_REDIRECT_URL:      "https://localhost:8032",
 		OAUTH2_PROVIDER:          "https://accounts.google.com",
 		OAUTH2_SCOPES:            "openid email profile email https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/profile.agerange.read",
+		HasPrefix:                "/oidc",
+		RedirectPrefix:           "",
 		// Provide a way to link claims to extra attributes
 		LinkClaims: linkClaims,
 	}

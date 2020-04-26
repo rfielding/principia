@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	//"os"
+	"github.com/rfielding/principia/common"
 	"strings"
 	"time"
 )
@@ -22,6 +23,8 @@ type OAuthConfig struct {
 	OAUTH2_REDIRECT_URL      string
 	OAUTH2_REDIRECT_CALLBACK string
 	OAUTH2_SCOPES            string
+	RedirectPrefix           string
+	HasPrefix                string
 	LinkClaims               LinkClaims
 }
 
@@ -31,9 +34,10 @@ type Authenticator struct {
 	ctx          context.Context
 	Trust        *Trust
 	Config       *OAuthConfig
+	Logger       common.Logger
 }
 
-func NewAuthenticator(config *OAuthConfig, trust *Trust) (*Authenticator, error) {
+func NewAuthenticator(config *OAuthConfig, trust *Trust, logger common.Logger) (*Authenticator, error) {
 	ctx := context.Background()
 	provider, err := oidc.NewProvider(ctx, config.OAUTH2_PROVIDER)
 	if err != nil {
@@ -54,6 +58,7 @@ func NewAuthenticator(config *OAuthConfig, trust *Trust) (*Authenticator, error)
 		ctx:          ctx,
 		Trust:        trust,
 		Config:       config,
+		Logger:       logger,
 	}, nil
 }
 
