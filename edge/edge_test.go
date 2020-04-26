@@ -225,10 +225,9 @@ func TestEdge(t *testing.T) {
 	eAuth1Svr, err := auth.NewServer(oauthconfig, eAuth1.Trust, eAuth1.Logger)
 	TryTest(t, err)
 	TryTest(t, eAuth1.Exec(edge.Spawn{
-		Name:        "oidc",
-		Expose:      true,
-		PortIntoEnv: "EAUTH_PORT",
-		KeepPrefix:  true,
+		Name:       "oidc",
+		Expose:     true,
+		KeepPrefix: true,
 		Run: edge.Command{
 			Server: eAuth1Svr,
 		},
@@ -236,10 +235,9 @@ func TestEdge(t *testing.T) {
 
 	eAuth2Svr, err := auth.NewServer(oauthconfig, eAuth2.Trust, eAuth2.Logger)
 	TryTest(t, eAuth2.Exec(edge.Spawn{
-		Name:        "oidc",
-		Expose:      true,
-		PortIntoEnv: "EAUTH_PORT",
-		KeepPrefix:  true,
+		Name:       "oidc",
+		Expose:     true,
+		KeepPrefix: true,
 		Run: edge.Command{
 			Server: eAuth2Svr,
 		},

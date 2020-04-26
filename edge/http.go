@@ -172,7 +172,8 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					w.Write([]byte(msg))
 					return
 				}
-				req.Header = r.Header
+				// XXX does this really correctly copy all headers?
+				req.Header = r.Header.Clone()
 				cl := e.HttpClient
 				res, err := cl.Do(req)
 				if err != nil {
