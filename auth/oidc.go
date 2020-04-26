@@ -79,7 +79,9 @@ func (a *Authenticator) HandleOIDCLogout(w http.ResponseWriter, r *http.Request)
 		Expires: time.Unix(0, 0),
 	}
 	http.SetCookie(w, &cookie)
-	w.Write([]byte("logged out"))
+
+	state := r.URL.Query().Get("state")
+	http.Redirect(w, r, state, http.StatusFound)
 }
 
 func (a *Authenticator) HandleSelf(w http.ResponseWriter, r *http.Request) {
