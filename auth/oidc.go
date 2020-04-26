@@ -65,6 +65,12 @@ func (a *Authenticator) HandleOIDCLogout(w http.ResponseWriter, r *http.Request)
 	}
 	http.SetCookie(w, &cookie)
 	cookie = http.Cookie{
+		Name:    "access_token",
+		Value:   "",
+		Expires: time.Unix(0, 0),
+	}
+	http.SetCookie(w, &cookie)
+	cookie = http.Cookie{
 		Name:    "verified_claims",
 		Value:   "",
 		Expires: time.Unix(0, 0),
