@@ -163,7 +163,7 @@ func (a *Authenticator) HandleOIDC(w http.ResponseWriter, r *http.Request) {
 		Expires:  token.Expiry,
 		HttpOnly: true,
 		Secure:   true,
-		Path:     "/",
+		Path:     "/oidc/",
 	}
 	http.SetCookie(w, &cookie)
 
@@ -173,7 +173,7 @@ func (a *Authenticator) HandleOIDC(w http.ResponseWriter, r *http.Request) {
 		Expires:  token.Expiry,
 		HttpOnly: true,
 		Secure:   true,
-		Path:     "/",
+		Path:     "/oidc/",
 	}
 	http.SetCookie(w, &cookie)
 	a.TurnIDTokenIntoCookies(w, r, rawIDToken, a.Trust)
