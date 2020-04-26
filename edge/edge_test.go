@@ -330,7 +330,7 @@ func TestEdge(t *testing.T) {
 		}
 	}
 
-	testLogger.Info("https://%s/eWeb/", eWeb.PeerName())
+	testLogger.Info("https://%s/eWeb/?login=true", eWeb.PeerName())
 
 	time.Sleep(5 * time.Minute)
 }

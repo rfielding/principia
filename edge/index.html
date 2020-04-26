@@ -18,10 +18,6 @@
         fn("../self", function(t) {
           var j = JSON.parse(t.responseText);
           document.getElementById("mypicture").src = j["picture"];
-        });
-
-        fn("../claims", function(t) {
-          var j = JSON.parse(t.responseText);
           document.getElementById("myname").textContent = j["name"];
         });
 
