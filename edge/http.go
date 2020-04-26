@@ -42,11 +42,6 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	e.Logger.Info("handling: %s", r.URL.Path)
 
-	if true && e.Authenticator != nil && strings.HasPrefix(r.URL.Path, "/oidc") {
-		e.Authenticator.ServeHTTP(w, r)
-		return
-	}
-
 	available := e.CheckAvailability().Available
 	// Find static items
 	if r.Method == "GET" {
