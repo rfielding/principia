@@ -236,6 +236,7 @@ func TestEdge(t *testing.T) {
 	for _, p := range eWebPeers {
 		eWeb.Peer(p.Host, p.Port)
 	}
+	eWeb.Tunnel("oidc", edge.AllocPort())
 	eWeb.Tunnel("eDB_eWeb", edge.AllocPort())
 	eWeb.Tunnel("mongo_eWeb", edge.AllocPort())
 	eWeb.Tunnel("redis_eWeb", edge.AllocPort())

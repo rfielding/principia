@@ -42,7 +42,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	e.Logger.Info("handling: %s", r.URL.Path)
 
-	if e.Authenticator != nil && strings.HasPrefix(r.URL.Path, "/oidc") {
+	if true && e.Authenticator != nil && strings.HasPrefix(r.URL.Path, "/oidc") {
 		e.Authenticator.ServeHTTP(w, r)
 		return
 	}
@@ -90,9 +90,10 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			} else {
 				path := "/" + r.RequestURI[2+len(spawn.Name):]
 				if spawn.KeepPrefix {
-					path = spawn.Name
+					path = "/" + spawn.Name + path
 				}
 				url := fmt.Sprintf("http://%s%s", to, path)
+				e.Logger.Info("try %s", url)
 				req, err := http.NewRequest(r.Method, url, r.Body)
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
