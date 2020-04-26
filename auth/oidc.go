@@ -279,3 +279,48 @@ func (a *Authenticator) TurnIDTokenIntoCookies(
 	http.SetCookie(w, &cookie)
 	http.Redirect(w, r, r.URL.Query().Get("state"), http.StatusFound)
 }
+
+func (a *Authenticator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	p := a.Config.HasPrefix
+	if r.URL.Path == p+"/cb" {
+		a.HandleOIDC(w, r)
+		return
+	}
+	if r.URL.Path == p+"/logout" {
+		a.HandleOIDCLogout(w, r)
+		return
+	}
+	if r.URL.Path == p+"/login" {
+		// If there is an id_token, then turn it into userpolicy and redirect
+		idTokenCookie, _ := r.Cookie("id_token")
+		if idTokenCookie != nil {
+			a.TurnIDTokenIntoCookies(w, r, idTokenCookie.Value, a.Trust)
+			return
+		}
+		// Otherwise, just do the whole oidc handshake
+		redirTo := a.ClientConfig.AuthCodeURL(
+			a.Config.RedirectPrefix + r.URL.Query().Get("state"),
+		)
+		http.Redirect(w, r, redirTo, http.StatusFound)
+		return
+	}
+	if r.URL.Path == p+"/claims" {
+		a.HandleClaims(w, r)
+		return
+	}
+	if r.URL.Path == p+"/self" {
+		a.HandleSelf(w, r)
+		return
+	}
+	return
+}
+
+func NewOIDCServer(config *OAuthConfig, trust *Trust, logger common.Logger) (*http.Server, error) {
+	a, err := NewAuthenticator(config, trust, logger)
+	if err != nil {
+		return nil, err
+	}
+	return &http.Server{
+		Handler: a,
+	}, nil
+}

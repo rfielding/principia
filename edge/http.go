@@ -42,7 +42,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	e.Logger.Info("handling: %s", r.URL.Path)
 
-	if e.Authenticator != nil {
+	if e.Authenticator != nil && strings.HasPrefix(r.URL.Path, "/oidc") {
 		a := e.Authenticator
 		p := a.Config.HasPrefix
 		if r.URL.Path == p+"/cb" {
@@ -53,29 +53,13 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			a.HandleOIDCLogout(w, r)
 			return
 		}
-		if r.URL.Query().Get("login") == "true" {
-			// If there is an id_token, then turn it into userpolicy and redirect
-			idTokenCookie, _ := r.Cookie("id_token")
-			if idTokenCookie != nil {
-				a.TurnIDTokenIntoCookies(w, r, idTokenCookie.Value, e.Trust)
-				return
-			}
-			e.Logger.Info("login with: %s", r.RequestURI)
-			// Otherwise, just do the whole oidc handshake
-			redirTo := a.ClientConfig.AuthCodeURL(
-				strings.Replace(r.RequestURI, "login=true", "login=false", 1),
-			)
-			http.Redirect(w, r, redirTo, http.StatusFound)
-			return
-		}
 		if r.URL.Path == p+"/login" {
 			// If there is an id_token, then turn it into userpolicy and redirect
 			idTokenCookie, _ := r.Cookie("id_token")
 			if idTokenCookie != nil {
-				a.TurnIDTokenIntoCookies(w, r, idTokenCookie.Value, e.Trust)
+				a.TurnIDTokenIntoCookies(w, r, idTokenCookie.Value, a.Trust)
 				return
 			}
-			e.Logger.Info("login with: %s", r.RequestURI)
 			// Otherwise, just do the whole oidc handshake
 			redirTo := a.ClientConfig.AuthCodeURL(
 				a.Config.RedirectPrefix + r.URL.Query().Get("state"),
@@ -84,13 +68,14 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if r.URL.Path == p+"/claims" {
-			e.Authenticator.HandleClaims(w, r)
+			a.HandleClaims(w, r)
 			return
 		}
 		if r.URL.Path == p+"/self" {
-			e.Authenticator.HandleSelf(w, r)
+			a.HandleSelf(w, r)
 			return
 		}
+		return
 	}
 
 	available := e.CheckAvailability().Available
