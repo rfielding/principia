@@ -58,9 +58,25 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				e.Authenticator.TurnIDTokenIntoCookies(w, r, idTokenCookie.Value, e.Trust)
 				return
 			}
+			e.Logger.Info("login with: %s", r.RequestURI)
 			// Otherwise, just do the whole oidc handshake
 			redirTo := e.Authenticator.ClientConfig.AuthCodeURL(
 				strings.Replace(r.RequestURI, "login=true", "login=false", 1),
+			)
+			http.Redirect(w, r, redirTo, http.StatusFound)
+			return
+		}
+		if r.URL.Path == "/oidc/login" {
+			// If there is an id_token, then turn it into userpolicy and redirect
+			idTokenCookie, _ := r.Cookie("id_token")
+			if idTokenCookie != nil {
+				e.Authenticator.TurnIDTokenIntoCookies(w, r, idTokenCookie.Value, e.Trust)
+				return
+			}
+			e.Logger.Info("login with: %s", r.RequestURI)
+			// Otherwise, just do the whole oidc handshake
+			redirTo := e.Authenticator.ClientConfig.AuthCodeURL(
+				r.URL.Query().Get("state"),
 			)
 			http.Redirect(w, r, redirTo, http.StatusFound)
 			return
