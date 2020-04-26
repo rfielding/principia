@@ -275,7 +275,8 @@ func (a *Authenticator) TurnIDTokenIntoCookies(
 		Secure:   true,
 	}
 	http.SetCookie(w, &cookie)
-	http.Redirect(w, r, a.Config.OAUTH2_REDIRECT_URL+r.URL.Query().Get("state"), http.StatusFound)
+	state := r.URL.Query().Get("state")
+	http.Redirect(w, r, state, http.StatusFound)
 }
 
 func (a *Authenticator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -295,9 +296,8 @@ func (a *Authenticator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// Otherwise, just do the whole oidc handshake
-		redirTo := a.ClientConfig.AuthCodeURL(
-			a.Config.OAUTH2_REDIRECT_URL + r.URL.Query().Get("state"),
-		)
+		state := r.URL.Query().Get("state")
+		redirTo := a.ClientConfig.AuthCodeURL(state)
 		a.Logger.Info("redirectTo: %s", redirTo)
 		http.Redirect(w, r, redirTo, http.StatusFound)
 		return

@@ -336,8 +336,8 @@ func (e *Edge) Exec(spawn Spawn) error {
 				if spawn.Run.HttpCheck == "" {
 					conn, err := net.DialTimeout("tcp", spawn.Address(), time.Duration(1*time.Second))
 					if err != nil {
-						e.Logger.Info("%s is not ready: %v", spawn.Address(), err)
-						time.Sleep(1 * time.Second)
+						e.Logger.Info("%s wait 2 sec more", spawn.Address())
+						time.Sleep(2 * time.Second)
 						continue
 					}
 					conn.Close()
@@ -349,8 +349,8 @@ func (e *Edge) Exec(spawn Spawn) error {
 				cl := http.Client{}
 				res, err := cl.Do(req)
 				if err != nil {
-					e.Logger.Info("%s not ready: %v", url, err)
-					time.Sleep(1 * time.Second)
+					e.Logger.Info("%s wait 2 seco more", url)
+					time.Sleep(2 * time.Second)
 					continue
 				}
 				res.Body.Close()
