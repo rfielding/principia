@@ -1,7 +1,37 @@
 <html>
-  <head>Testing</head>
+  <head>
+    <title>Testing</title>
+    <script language="javascript">
+      document.addEventListener('DOMContentLoaded', function(){
+
+        var fn = function(u, loaded) {
+          const h = new XMLHttpRequest();
+          h.onreadystatechange = function() {
+            if (h.readyState == 4 && h.status == 200) {
+              return loaded(h);
+            }
+          };
+          h.open("GET", u, true);
+          h.send()
+        };
+
+        fn("../self", function(t) {
+          var j = JSON.parse(t.responseText);
+          document.getElementById("mypicture").src = j["picture"];
+        });
+
+        fn("../claims", function(t) {
+          var j = JSON.parse(t.responseText);
+          document.getElementById("myname").textContent = j["name"];
+        });
+
+      });
+    </script>
+  </head>
   <body>
-    It works!
-    <a href=/eDB_eWeb/>Try this!</a>
+    <h2 id="myname"></h2>
+    <img id="mypicture"><img>
+    <hr>
+    <a href="../eDB_eWeb/">Try this!</a>
   </body>
 </html>

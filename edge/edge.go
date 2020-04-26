@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/rfielding/principia/auth"
 	"github.com/rfielding/principia/common"
 )
 
@@ -90,6 +91,12 @@ func (s *Spawn) Address() string {
 	return fmt.Sprintf("%s:%d", s.Owner.HostSidecar, s.Port)
 }
 
+type IdentityFiles struct {
+	CertPath  string
+	KeyPath   string
+	TrustPath string
+}
+
 // Edge is pointed to by Peer, and contains the reverse proxy to
 // spawned Listener objects
 type Edge struct {
@@ -107,10 +114,9 @@ type Edge struct {
 	DefaultLease      time.Duration
 	Peers             []Peer
 	Tunnels           []Tunnel
-	CertPath          string
-	KeyPath           string
-	TrustPath         string
+	IdentityFiles     IdentityFiles
 	HttpClient        *http.Client
+	Trust             *auth.Trust
 	TLSClientConfig   *tls.Config
 	InternalServer    http.Server
 	ExternalServer    http.Server
@@ -118,6 +124,9 @@ type Edge struct {
 	AvailabilityLease time.Duration
 	Done              chan bool
 	HttpFilter        func(req *http.Request)
+	Authenticator     *auth.Authenticator
+	OAuthConfig       *auth.OAuthConfig
+	LinkClaims        auth.LinkClaims
 }
 
 type Service struct {
@@ -394,6 +403,7 @@ func (e *Edge) Tunnel(service string, port Port) error {
 }
 
 func (e *Edge) Close() error {
+	e.Logger.Info("shutting down now!")
 	tunnels := e.Tunnels
 	for _, tunnel := range tunnels {
 		if tunnel.Listener != nil {
@@ -442,6 +452,7 @@ func Start(e *Edge) (*Edge, error) {
 	if e.Name == "" {
 		e.Name = fmt.Sprintf("%s:%d", e.Host, e.Port)
 	}
+	e.Trust = &auth.Trust{}
 	e.Logger = common.NewLogger(fmt.Sprintf("%s", e.Name))
 	e.Spawns = make([]Spawn, 0)
 	e.Spawns = append(e.Spawns, Spawn{
@@ -464,25 +475,50 @@ func Start(e *Edge) (*Edge, error) {
 		rootCAs = x509.NewCertPool()
 	}
 	// Read in the cert file
-	certs, err := ioutil.ReadFile(e.TrustPath)
+	certs, err := ioutil.ReadFile(e.IdentityFiles.TrustPath)
 	if err != nil {
-		e.Logger.Error("Failed to append %q to RootCAs: %v", e.TrustPath, err)
+		e.Logger.Error("Failed to append %q to RootCAs: %v", e.IdentityFiles.TrustPath, err)
 		return nil, err
 	}
 	if ok := rootCAs.AppendCertsFromPEM(certs); !ok {
 		e.Logger.Info("No certs appended, using system certs only")
 	}
-	certPem, err := ioutil.ReadFile(e.CertPath)
+	certPem, err := ioutil.ReadFile(e.IdentityFiles.CertPath)
 	if err != nil {
 		return nil, err
 	}
-	keyPem, err := ioutil.ReadFile(e.KeyPath)
+	keyPem, err := ioutil.ReadFile(e.IdentityFiles.KeyPath)
 	if err != nil {
 		return nil, err
 	}
 	cert, err := tls.X509KeyPair(certPem, keyPem)
 	if err != nil {
 		return nil, err
+	}
+
+	issuers, err := e.Trust.TrustIssuers(certs)
+	if err != nil {
+		return nil, err
+	}
+	for _, iss := range issuers {
+		e.Logger.Info("trusting: %s", iss.Name)
+	}
+	issuer, err := e.Trust.TrustIssuer(cert.Certificate[0], cert.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
+	e.Logger.Info("trusting and can sign for: %s", issuer.Name)
+
+	if e.OAuthConfig != nil {
+		authenticator, err := auth.NewAuthenticator(
+			e.OAuthConfig,
+			e.Trust,
+		)
+		if err != nil {
+			return nil, err
+		}
+		e.Authenticator = authenticator
+		e.Logger.Info("OAuth configured to use provider %s", e.OAuthConfig.OAUTH2_PROVIDER)
 	}
 
 	// Create our client HttpConfig and transport
@@ -511,7 +547,10 @@ func Start(e *Edge) (*Edge, error) {
 		},
 	}
 	e.Logger.Info("edge.Start: https://%s:%d", e.Host, e.Port)
-	go e.ExternalServer.ListenAndServeTLS(e.CertPath, e.KeyPath)
+	go e.ExternalServer.ListenAndServeTLS(
+		e.IdentityFiles.CertPath,
+		e.IdentityFiles.KeyPath,
+	)
 
 	// Our internal server can use plaintext
 	e.InternalServer = http.Server{

@@ -40,7 +40,41 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		e.LogRet(w, http.StatusBadRequest, nil, "A requestURL must be a fully qualified path, not %s", r.RequestURI)
 		return
 	}
-	logger := e.Logger.Push("ServeHTTP")
+	e.Logger.Info("handling: %s", r.URL.Path)
+
+	if e.Authenticator != nil {
+		if r.URL.Path == "/oidc" {
+			e.Authenticator.HandleOIDC(w, r)
+			return
+		}
+		if r.URL.Path == "/logout" {
+			e.Authenticator.HandleOIDCLogout(w, r)
+			return
+		}
+		if r.URL.Query().Get("login") == "true" {
+			// If there is an id_token, then turn it into userpolicy and redirect
+			idTokenCookie, _ := r.Cookie("id_token")
+			if idTokenCookie != nil {
+				e.Authenticator.TurnIDTokenIntoCookies(w, r, idTokenCookie.Value, e.Trust)
+				return
+			}
+			// Otherwise, just do the whole oidc handshake
+			redirTo := e.Authenticator.ClientConfig.AuthCodeURL(
+				strings.Replace(r.RequestURI, "login=true", "login=false", 1),
+			)
+			http.Redirect(w, r, redirTo, http.StatusFound)
+			return
+		}
+		if r.URL.Path == "/claims" {
+			e.Authenticator.HandleClaims(w, r)
+			return
+		}
+		if r.URL.Path == "/self" {
+			e.Authenticator.HandleSelf(w, r)
+			return
+		}
+	}
+
 	available := e.CheckAvailability().Available
 	// Find static items
 	if r.Method == "GET" {
@@ -55,14 +89,14 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	wantsWebsockets := r.Header.Get("Connection") == "Upgrade" &&
 		r.Header.Get("Upgrade") == "websocket"
-	logger.Debug("%s %s wantsWebsockets=%t", r.Method, r.RequestURI, wantsWebsockets)
+	e.Logger.Debug("%s %s wantsWebsockets=%t", r.Method, r.RequestURI, wantsWebsockets)
 
 	// Find local spawns - we modify the url
 	for _, spawn := range e.Spawns {
 		expectedServicePrefix := fmt.Sprintf("/%s/", spawn.Name)
 		if strings.HasPrefix(r.RequestURI, expectedServicePrefix) {
 			to := fmt.Sprintf("%s:%d", e.HostSidecar, spawn.Port)
-			logger.Debug("listener: GET %s -> %s %s", r.RequestURI, spawn.Name, to)
+			e.Logger.Debug("listener: GET %s -> %s %s", r.RequestURI, spawn.Name, to)
 			if wantsWebsockets {
 				// Dial the destination in plaintext, with no websocket headers
 				dest_conn, err := net.DialTimeout("tcp", to, 10*time.Second)
@@ -88,7 +122,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
 					msg := fmt.Sprintf("Failed To Create Request: %v", err)
-					logger.Error(msg)
+					e.Logger.Error(msg)
 					w.Write([]byte(msg))
 					return
 				}
@@ -115,7 +149,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				rv := int(rand.Int31n(int32(len(volunteers))))
 				volunteer := volunteers[rv]
 				url := fmt.Sprintf("https://%s%s", volunteer, r.RequestURI)
-				logger.Debug("volunteer: %s %s -> %s", r.Method, url, volunteer)
+				e.Logger.Debug("volunteer: %s %s -> %s", r.Method, url, volunteer)
 				req, err := http.NewRequest(r.Method, url, r.Body)
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)

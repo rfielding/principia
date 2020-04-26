@@ -19,7 +19,7 @@ rather than `kubernetes` or `docker-compose`.  Specifically, it has these goals:
 
 A shorter description of what it is trying to do: replace docker-compose, and integrate common things that normally must be configured and bolted on.
 
-> Prerequisites: Have docker installed so that it does not need root to run; which is not the default on Linux.  Have Go 1.13 installed, with GOPATH setup correctly. 
+> Prerequisites: Have docker installed so that it does not need root to run; which is not the default on Linux.  Have Go 1.13 installed, with GOPATH setup correctly.
 
 This example resembles a simple integration test we have in package `edge`, run like this:
 ```bash
@@ -51,11 +51,71 @@ Like `ssh`, the daemons are all rather similar.  An Edge just needs enough infor
 ```go
 // This is a sidecar for a database on random port
 eDB, err := edge.Start(&edge.Edge{
-  CertPath:  certPath,
-  KeyPath:   keyPath,
-  TrustPath: trustPath,
+  &IdentityFiles{
+    CertPath:  certPath,
+    KeyPath:   keyPath,
+    TrustPath: trustPath,    
+  },
 })
 ```
+
+Certs and JWT:
+
+- OIDC integration into the sidecars
+- Given the x509 certs passed in for identity, we trust, and can trivially sign JWT tokens signed with these certs.  This means some careful constraints on cert algorithms that generated our X509 certs.  RSA512 and ES256 can work in this context.
+- JWT keys are automatically created from the certs.
+- Trusted certs will be trusted to sign JWTs.
+- Attach extra attributes to OIDC attributes
+
+When using OIDC to login with parameter `?login=true`, which triggers an OAuth login:
+
+```
+GET /claims
+```
+
+```json
+{
+  "at_hash": "ab2r4PzQ-F-yhC78Antmrg",
+  "aud": "117885021249-ptm2h0v2oqfljq5hbj785trpcrb1m3s4.apps.googleusercontent.com",
+  "azp": "117885021249-ptm2h0v2oqfljq5hbj785trpcrb1m3s4.apps.googleusercontent.com",
+  "email": "rob.fielding@gmail.com",
+  "email_verified": true,
+  "exp": 1587878004,
+  "family_name": "Fielding",
+  "given_name": "Rob",
+  "iat": 1587874404,
+  "iss": "https://accounts.google.com",
+  "locale": "en",
+  "name": "Rob Fielding",
+  "picture": "https://lh3.googleusercontent.com/a-/AOh14Gi0Jv8HXpcc6abL6AM0ooZ50RURefo1zho3leAyiQ=s96-c",
+  "sub": "100872604511580021979"
+}
+```
+
+```
+GET /self
+```
+
+```json
+{
+  "email": "rob.fielding@gmail.com",
+  "iss": "CN=localhost,O=principia,C=US",
+  "exp": 1587903204,
+  "picture": "https://lh3.googleusercontent.com/a-/AOh14Gi0Jv8HXpcc6abL6AM0ooZ50RURefo1zho3leAyiQ=s96-c",
+  "values": {
+    "email": [
+      "rob.fielding@gmail.com"
+    ],
+    "role": [
+      "admin",
+      "user"
+    ]
+  }
+}
+```
+
+Note that we appended the role and age locally.
+
 
 > see edge/edge_test.go
 

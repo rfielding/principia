@@ -1,0 +1,4 @@
+#!/bin/bash
+
+openssl ecparam -name prime256v1 -noout -genkey -out edge/test_key.pem
+openssl req -new -x509 -key edge/test_key.pem -out edge/test_cert.pem -subj "/C=US/O=principia/CN=localhost" -days 730

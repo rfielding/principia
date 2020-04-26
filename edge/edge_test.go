@@ -2,15 +2,16 @@ package edge_test
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
+	"github.com/rfielding/principia/auth"
+	"github.com/rfielding/principia/common"
+	"github.com/rfielding/principia/edge"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"testing"
 	"time"
-
-	"github.com/rfielding/principia/common"
-	"github.com/rfielding/principia/edge"
 )
 
 func TestWSKey(t *testing.T) {
@@ -42,12 +43,65 @@ func testParseHttp(t *testing.T, conn net.Conn, logger common.Logger) {
 	conn.Close()
 }
 
+type UserDB map[string]map[string][]string
+
 func TestEdge(t *testing.T) {
-	// can be per-identity, must be signed by trustPath
-	certPath := "./test_cert.pem"
-	keyPath := "./test_key.pem"
-	// every peer trusts trustPath certs
-	trustPath := "./test_cert.pem"
+	// Load a userr database
+	dbBytes, err := ioutil.ReadFile("./users.json")
+	if err != nil {
+		t.Logf("unable to open user database: %v", err)
+		t.FailNow()
+	}
+	var db UserDB
+	err = json.Unmarshal(dbBytes, &db)
+	if err != nil {
+		t.Logf("unable to parse user database: %v", err)
+		t.FailNow()
+	}
+
+	// A simple algorithm for linking in new attributes to claims
+	linkClaims := func(oidc_claims interface{}) map[string][]string {
+		// estract given email if possible
+		given_email := ""
+		oidcMap, ok := oidc_claims.(map[string]interface{})
+		if ok {
+			oidcMapEmail, ok := oidcMap["email"].(string)
+			if ok {
+				given_email = oidcMapEmail
+			}
+		}
+
+		// Find or make an entry
+		entry := db[given_email]
+		if entry == nil {
+			entry = map[string][]string{}
+		}
+
+		// Modify it as necessary
+		if given_email != "" {
+			entry["email"] = common.AppendToStringSet(entry["email"], given_email)
+		}
+
+		return entry
+	}
+
+	// OAuth config
+	oauthconfig := &auth.OAuthConfig{
+		OAUTH2_CLIENT_ID:         "117885021249-ptm2h0v2oqfljq5hbj785trpcrb1m3s4.apps.googleusercontent.com",
+		OAUTH2_CLIENT_SECRET:     "URC1G9gQ_LBWGoyg7JWAWimh",
+		OAUTH2_REDIRECT_CALLBACK: "/oidc",
+		OAUTH2_REDIRECT_URL:      "https://localhost:8032",
+		OAUTH2_PROVIDER:          "https://accounts.google.com",
+		OAUTH2_SCOPES:            "openid email profile email https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/profile.agerange.read",
+		// Provide a way to link claims to extra attributes
+		LinkClaims: linkClaims,
+	}
+
+	idFiles := edge.IdentityFiles{
+		KeyPath:   "./test_key.pem",
+		CertPath:  "./test_cert.pem",
+		TrustPath: "./test_cert.pem",
+	}
 
 	testLogger := common.NewLogger("integrationTest")
 
@@ -58,50 +112,44 @@ func TestEdge(t *testing.T) {
 
 	// This is a sidecar for a database on random port
 	eDB, err := edge.Start(&edge.Edge{
-		CertPath:  certPath,
-		KeyPath:   keyPath,
-		TrustPath: trustPath,
+		IdentityFiles: idFiles,
+		OAuthConfig:   oauthconfig,
 	})
 	TryTest(t, err)
 	defer eDB.Close()
 
 	eAuth1, err := edge.Start(&edge.Edge{
-		CertPath:  certPath,
-		KeyPath:   keyPath,
-		TrustPath: trustPath,
+		IdentityFiles: idFiles,
+		OAuthConfig:   oauthconfig,
 	})
 	TryTest(t, err)
 	defer eAuth1.Close()
 
 	eAuth2, err := edge.Start(&edge.Edge{
-		CertPath:  certPath,
-		KeyPath:   keyPath,
-		TrustPath: trustPath,
+		IdentityFiles: idFiles,
+		OAuthConfig:   oauthconfig,
 	})
 	TryTest(t, err)
 	defer eAuth2.Close()
 
 	mongo, err := edge.Start(&edge.Edge{
-		CertPath:  certPath,
-		KeyPath:   keyPath,
-		TrustPath: trustPath,
+		IdentityFiles: idFiles,
+		OAuthConfig:   oauthconfig,
 	})
 	TryTest(t, err)
 	defer mongo.Close()
 
 	redis_eWeb, err := edge.Start(&edge.Edge{
-		CertPath:  certPath,
-		KeyPath:   keyPath,
-		TrustPath: trustPath,
+		IdentityFiles: idFiles,
+		OAuthConfig:   oauthconfig,
 	})
 	TryTest(t, err)
 	defer redis_eWeb.Close()
 
 	eWeb, err := edge.Start(&edge.Edge{
-		Host:      "localhost",
-		CertPath:  certPath,
-		KeyPath:   keyPath,
-		TrustPath: trustPath,
+		Host:          "localhost",
+		IdentityFiles: idFiles,
+		OAuthConfig:   oauthconfig,
 	})
 	TryTest(t, err)
 	defer eWeb.Close()

@@ -64,6 +64,9 @@ func VerifyPeerCertificate(rawCerts [][]byte, verifiedChains [][]*x509.Certifica
 
 		roots.AddCert(c)
 	}
+	if rawCerts == nil || len(rawCerts) == 0 {
+		return fmt.Errorf("no certificate to verify")
+	}
 	cert, _ := x509.ParseCertificate(rawCerts[0])
 	opts := x509.VerifyOptions{
 		DNSName: cert.Subject.CommonName,
@@ -73,4 +76,13 @@ func VerifyPeerCertificate(rawCerts [][]byte, verifiedChains [][]*x509.Certifica
 		return fmt.Errorf("failed to verify certificate: " + err.Error())
 	}
 	return nil
+}
+
+func AppendToStringSet(strs []string, str string) []string {
+	for _, s := range strs {
+		if s == str {
+			return strs
+		}
+	}
+	return append(strs, str)
 }

@@ -1,0 +1,15 @@
+{
+  "rob.fielding@gmail.com": {
+    "role": ["admin","user"],
+    "age": ["adult"]
+  },
+  "rob.fielding@deciphernow.com": {
+    "role": ["admin","user"]
+  },
+  "martin.terskin@deciphernow.com": {
+    "role": ["admin","user"]
+  },
+  "daniel.cox@deciphernow.com": {
+    "role": ["admin","user"]
+  }
+}

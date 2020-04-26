@@ -139,14 +139,14 @@ func main() {
 	logger := common.NewLogger("main")
 	logger.Info("starting")
 
-	certPath := "../../edge/test_cert.pem"
-	keyPath := "../../edge/test_key.pem"
-	trustPath := "../../edge/test_cert.pem"
+	idFiles := edge.IdentityFiles{
+		KeyPath:   "../../edge/test_key.pem",
+		CertPath:  "../../edge/test_cert.pem",
+		TrustPath: "../../edge/test_cert.pem",
+	}
 
 	e0, err := edge.Start(&edge.Edge{
-		CertPath:  certPath,
-		KeyPath:   keyPath,
-		TrustPath: trustPath,
+		IdentityFiles: idFiles,
 		HttpFilter: func(r *http.Request) {
 			r.Header.Set("USER_DN", default_user_dn)
 		},
