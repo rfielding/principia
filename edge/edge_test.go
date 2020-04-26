@@ -155,6 +155,18 @@ func TestEdge(t *testing.T) {
 	TryTest(t, err)
 	defer eWeb.Close()
 
+	// If this app is just passed in a list of peers...
+	eWebPeers := []*edge.Edge{eDB, eAuth1, eAuth2, mongo, redis_eWeb}
+
+	// And declares its tunnels....
+	for _, p := range eWebPeers {
+		eWeb.Peer(p.Host, p.Port)
+	}
+	eWeb.Tunnel("oidc", edge.AllocPort())
+	eWeb.Tunnel("eDB_eWeb", edge.AllocPort())
+	eWeb.Tunnel("mongo_eWeb", edge.AllocPort())
+	eWeb.Tunnel("redis_eWeb", edge.AllocPort())
+
 	/*
 		  In the edge machines, we should spawn some commands.
 			TODO: wait until port can be reached
@@ -232,18 +244,6 @@ func TestEdge(t *testing.T) {
 			Server: eAuth2Svr,
 		},
 	}))
-
-	// If this app is just passed in a list of peers...
-	eWebPeers := []*edge.Edge{eDB, eAuth1, eAuth2, mongo, redis_eWeb}
-
-	// And declares its tunnels....
-	for _, p := range eWebPeers {
-		eWeb.Peer(p.Host, p.Port)
-	}
-	eWeb.Tunnel("oidc", edge.AllocPort())
-	eWeb.Tunnel("eDB_eWeb", edge.AllocPort())
-	eWeb.Tunnel("mongo_eWeb", edge.AllocPort())
-	eWeb.Tunnel("redis_eWeb", edge.AllocPort())
 
 	// The app can spawn
 	TryTest(t, eWeb.Exec(edge.Spawn{
