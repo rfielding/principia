@@ -64,18 +64,21 @@ func (a *Authenticator) HandleOIDCLogout(w http.ResponseWriter, r *http.Request)
 	cookie := http.Cookie{
 		Name:    "id_token",
 		Value:   "",
+		Path:    "/",
 		Expires: time.Unix(0, 0),
 	}
 	http.SetCookie(w, &cookie)
 	cookie = http.Cookie{
 		Name:    "access_token",
 		Value:   "",
+		Path:    "/",
 		Expires: time.Unix(0, 0),
 	}
 	http.SetCookie(w, &cookie)
 	cookie = http.Cookie{
 		Name:    "verified_claims",
 		Value:   "",
+		Path:    "/",
 		Expires: time.Unix(0, 0),
 	}
 	http.SetCookie(w, &cookie)
@@ -303,7 +306,7 @@ func (a *Authenticator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Otherwise, just do the whole oidc handshake
 		state := r.URL.Query().Get("state")
 		redirTo := a.ClientConfig.AuthCodeURL(state)
-		a.Logger.Info("redirectTo: %s", redirTo)
+		//a.Logger.Info("redirectTo: %s", redirTo)
 		http.Redirect(w, r, redirTo, http.StatusFound)
 		return
 	}
