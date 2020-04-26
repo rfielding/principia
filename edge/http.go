@@ -163,6 +163,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if len(volunteers) > 0 {
 				rv := int(rand.Int31n(int32(len(volunteers))))
 				volunteer := volunteers[rv]
+				// We want exact same URI and headers, just different destination
 				url := fmt.Sprintf("https://%s%s", volunteer, r.RequestURI)
 				e.Logger.Debug("volunteer: %s %s -> %s", r.Method, url, volunteer)
 				req, err := http.NewRequest(r.Method, url, r.Body)
@@ -182,9 +183,18 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					w.Write([]byte(msg))
 					return
 				}
+				// Copy the body
 				if wantsWebsockets {
 					e.wsHttps(w, r, volunteer, r.RequestURI)
 				} else {
+					// Copy over the headers
+					for k, a := range res.Header {
+						for i := range a {
+							w.Header().Add(k, a[i])
+						}
+					}
+					// Copy the response code
+					w.WriteHeader(res.StatusCode)
 					io.Copy(w, res.Body)
 				}
 				return
