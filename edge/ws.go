@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"fmt"
+	"github.com/rfielding/principia/auth"
 	"io"
 	"math/rand"
 	"net"
@@ -70,6 +71,20 @@ func WsSecWebSocketAccept(key string) string {
 // the front of the socket.  The url is used to locate the tunnel on the other end
 // of the websocket.
 func (e *Edge) wsConsumeHeaders(addr string, url string, conn net.Conn) (string, error) {
+
+	// Identify ourselves so that we can limit unexposed calls
+	token, err := auth.Encode(
+		auth.VerifiedClaims{
+			Values: map[string][]string{
+				"role": []string{"peer"},
+			},
+		},
+		e.Trust,
+	)
+	if err != nil {
+		return "", err
+	}
+
 	socketKey := WsSecWebSocketKey()
 	secAccept := WsSecWebSocketAccept(socketKey)
 	if strings.HasPrefix(url, "http") {
@@ -78,6 +93,7 @@ func (e *Edge) wsConsumeHeaders(addr string, url string, conn net.Conn) (string,
 	// Perform the websocket handshake, by writing the GET request on our tunnel
 	conn.Write([]byte(fmt.Sprintf("GET %s HTTP/1.1\r\n", url)))
 	conn.Write([]byte(fmt.Sprintf("Host: %s\r\n", addr)))
+	conn.Write([]byte(fmt.Sprintf("Cookie: verified_claims=%s\r\n", token)))
 	conn.Write([]byte("Connection: Upgrade\r\n"))
 	conn.Write([]byte("Upgrade: websocket\r\n"))
 	conn.Write([]byte(fmt.Sprintf("Sec-WebSocket-Key: %s\r\n", socketKey)))

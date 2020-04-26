@@ -73,10 +73,28 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		r.Header.Get("Upgrade") == "websocket"
 	e.Logger.Debug("%s %s wantsWebsockets=%t", r.Method, r.RequestURI, wantsWebsockets)
 
+	canUseHidden := false
+	verified_claims_cookie, err := r.Cookie("verified_claims")
+	if err == nil {
+		vc, err := auth.Decode([]byte(verified_claims_cookie.Value), e.Trust)
+		if err != nil {
+			e.Logger.Error("verified claims parse fail: %v", err)
+		} else {
+			// Claims have legitimate info in them
+			canUseHidden =
+				len(vc.Values) > 0 &&
+					len(vc.Values["role"]) > 0 &&
+					common.ArrayHas(vc.Values["role"], "peer")
+		}
+	}
+
 	// Find local spawns - we modify the url
 	for _, spawn := range e.Spawns {
 		expectedServicePrefix := fmt.Sprintf("/%s/", spawn.Name)
 		if strings.HasPrefix(r.RequestURI, expectedServicePrefix) {
+			if !canUseHidden && !spawn.Expose {
+				w.WriteHeader(http.StatusUnauthorized)
+			}
 			to := fmt.Sprintf("%s:%d", e.HostSidecar, spawn.Port)
 			e.Logger.Debug("listener: GET %s -> %s %s", r.RequestURI, spawn.Name, to)
 			if wantsWebsockets {
