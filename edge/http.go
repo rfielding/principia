@@ -43,11 +43,11 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	e.Logger.Info("handling: %s", r.URL.Path)
 
 	if e.Authenticator != nil {
-		if r.URL.Path == "/oidc" {
+		if r.URL.Path == "/oidc/cb" {
 			e.Authenticator.HandleOIDC(w, r)
 			return
 		}
-		if r.URL.Path == "/logout" {
+		if r.URL.Path == "/oidc/logout" {
 			e.Authenticator.HandleOIDCLogout(w, r)
 			return
 		}
@@ -65,11 +65,11 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, redirTo, http.StatusFound)
 			return
 		}
-		if r.URL.Path == "/claims" {
+		if r.URL.Path == "/oidc/claims" {
 			e.Authenticator.HandleClaims(w, r)
 			return
 		}
-		if r.URL.Path == "/self" {
+		if r.URL.Path == "/oidc/self" {
 			e.Authenticator.HandleSelf(w, r)
 			return
 		}

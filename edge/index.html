@@ -15,7 +15,7 @@
           h.send()
         };
 
-        fn("../self", function(t) {
+        fn("../oidc/self", function(t) {
           var j = JSON.parse(t.responseText);
           document.getElementById("mypicture").src = j["picture"];
           document.getElementById("myname").textContent = j["name"];

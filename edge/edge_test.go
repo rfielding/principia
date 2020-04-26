@@ -89,7 +89,7 @@ func TestEdge(t *testing.T) {
 	oauthconfig := &auth.OAuthConfig{
 		OAUTH2_CLIENT_ID:         "117885021249-ptm2h0v2oqfljq5hbj785trpcrb1m3s4.apps.googleusercontent.com",
 		OAUTH2_CLIENT_SECRET:     "URC1G9gQ_LBWGoyg7JWAWimh",
-		OAUTH2_REDIRECT_CALLBACK: "/oidc",
+		OAUTH2_REDIRECT_CALLBACK: "/oidc/cb",
 		OAUTH2_REDIRECT_URL:      "https://localhost:8032",
 		OAUTH2_PROVIDER:          "https://accounts.google.com",
 		OAUTH2_SCOPES:            "openid email profile email https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/profile.agerange.read",
