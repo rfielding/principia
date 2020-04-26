@@ -42,6 +42,10 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	e.Logger.Info("handling: %s", r.URL.Path)
 
+	if r.URL.Path == "/" && len(e.DefaultURI) > 0 {
+		http.Redirect(w, r, e.DefaultURI, http.StatusFound)
+	}
+
 	if true && e.Authenticator != nil && strings.HasPrefix(r.URL.Path, "/oidc") {
 		e.Authenticator.ServeHTTP(w, r)
 		return
@@ -50,15 +54,16 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	available := e.CheckAvailability().Available
 	// Find static items
 	if r.Method == "GET" {
-		if r.RequestURI == "/echo" {
+		if r.RequestURI == "/principia/echo" {
 			e.Echo(w, r)
 			return
 		}
-		if r.RequestURI == "/available" {
+		if r.RequestURI == "/principia/available" {
 			w.Write(common.AsJsonPretty(available))
 			return
 		}
 	}
+
 	wantsWebsockets := r.Header.Get("Connection") == "Upgrade" &&
 		r.Header.Get("Upgrade") == "websocket"
 	e.Logger.Debug("%s %s wantsWebsockets=%t", r.Method, r.RequestURI, wantsWebsockets)

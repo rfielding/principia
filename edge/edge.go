@@ -128,6 +128,7 @@ type Edge struct {
 	Authenticator     *auth.Authenticator
 	OAuthConfig       *auth.OAuthConfig
 	LinkClaims        auth.LinkClaims
+	DefaultURI        string
 }
 
 type Service struct {
@@ -154,7 +155,7 @@ func (e *Edge) SidecarName() string {
 }
 
 func (e *Edge) AvailableFromPeer(peer Peer) (map[string]*Service, error) {
-	j, err := e.GetFromPeer(peer.Name(), "/available")
+	j, err := e.GetFromPeer(peer.Name(), "/principia/available")
 	if err != nil {
 		return nil, err
 	}

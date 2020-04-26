@@ -150,6 +150,7 @@ func TestEdge(t *testing.T) {
 		Host:          "localhost",
 		IdentityFiles: idFiles,
 		OAuthConfig:   oauthconfig,
+		DefaultURI:    "/eWeb/",
 	})
 	TryTest(t, err)
 	defer eWeb.Close()
