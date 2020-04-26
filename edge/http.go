@@ -62,6 +62,10 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			w.Write(common.AsJsonPretty(available))
 			return
 		}
+		if r.RequestURI == "/principia/peers" {
+			w.Write(common.AsJsonPretty(e.Peers))
+			return
+		}
 	}
 
 	wantsWebsockets := r.Header.Get("Connection") == "Upgrade" &&

@@ -350,7 +350,7 @@ func (e *Edge) Exec(spawn Spawn) error {
 				cl := http.Client{}
 				res, err := cl.Do(req)
 				if err != nil {
-					e.Logger.Info("%s wait 2 seco more", url)
+					e.Logger.Info("%s wait 2 sec more", url)
 					time.Sleep(2 * time.Second)
 					continue
 				}
