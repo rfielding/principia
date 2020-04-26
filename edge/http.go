@@ -74,9 +74,11 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	e.Logger.Debug("%s %s wantsWebsockets=%t", r.Method, r.RequestURI, wantsWebsockets)
 
 	canUseHidden := false
-	verified_claims_cookie, err := r.Cookie("verified_claims")
+	var err error
+	var vc auth.VerifiedClaims
+	vcCookie, err := r.Cookie("verified_claims")
 	if err == nil {
-		vc, err := auth.Decode([]byte(verified_claims_cookie.Value), e.Trust)
+		vc, err = auth.Decode([]byte(vcCookie.Value), e.Trust)
 		if err != nil {
 			e.Logger.Error("verified claims parse fail: %v", err)
 		} else {
@@ -86,6 +88,11 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					len(vc.Values["role"]) > 0 &&
 					common.ArrayHas(vc.Values["role"], "peer")
 		}
+	} else {
+		e.Logger.Error("verified_claims cookie: %s... in %s", err, r.Header.Get("Cookie"))
+	}
+	if len(vc.Email) > 0 {
+		e.Logger.Info("visit by: %s", vc.Email)
 	}
 
 	// Find local spawns - we modify the url

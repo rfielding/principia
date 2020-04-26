@@ -101,7 +101,7 @@ func (t *Trust) TrustIssuer(cert []byte, priv interface{}) (*Issuer, error) {
 
 func (vc *VerifiedClaims) CheckExpiration() error {
 	now := time.Now().Unix()
-	if now < vc.ExpiresAt {
+	if now > vc.ExpiresAt {
 		return fmt.Errorf("JWT expired %d sec ago", (now - vc.ExpiresAt))
 	}
 	return nil
