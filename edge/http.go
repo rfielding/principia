@@ -47,11 +47,6 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, e.DefaultURI, http.StatusFound)
 	}
 
-	if true && e.Authenticator != nil && strings.HasPrefix(r.URL.Path, "/oidc") {
-		e.Authenticator.ServeHTTP(w, r)
-		return
-	}
-
 	available := e.CheckAvailability().Available
 	// Find static items
 	if r.Method == "GET" {
@@ -151,6 +146,15 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
+	// XXX - I need to turn this off to use the actual oidc service.
+	// Some bug with redirect is not getting same behavior, though forwarding
+	// looks like it should be identical
+	if true && e.Authenticator != nil && strings.HasPrefix(r.URL.Path, "/oidc/") {
+		e.Authenticator.ServeHTTP(w, r)
+		return
+	}
+
 	// Search volunteers - leave url alone
 	for name := range available {
 		if strings.HasPrefix(r.RequestURI, "/"+name+"/") {
