@@ -173,7 +173,6 @@ func (e *Edge) CheckAvailability() *Availability {
 	if e.Availability != nil && e.Availability.ExpiresAt.Unix() > time.Now().Unix() {
 		return e.Availability
 	}
-	logger := e.Logger.Push("Available")
 	available := make(map[string]*Service)
 	// These are locally implemented
 	spawns := e.Spawns
@@ -195,7 +194,7 @@ func (e *Edge) CheckAvailability() *Availability {
 	for p, peer := range e.Peers {
 		services, err := e.AvailableFromPeer(peer)
 		if err != nil {
-			logger.Error("peer unavailable: %v", err)
+			e.Logger.Error("peer unavailable: %v", err)
 		}
 		if services == nil && time.Now().Unix() > e.Peers[p].ExpiresAt.Unix() {
 			// it's expired and we could not contact it

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rfielding/principia/auth"
 	"github.com/rfielding/principia/common"
 )
 
@@ -164,17 +165,33 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (e *Edge) GetFromPeer(peerName string, cmd string) ([]byte, error) {
-	logger := e.Logger.Push("GetFromPeer")
+	token, err := auth.Encode(
+		auth.VerifiedClaims{
+			Values: map[string][]string{
+				"role": []string{"peer"},
+			},
+		},
+		e.Trust,
+	)
+	if err != nil {
+		return nil, err
+	}
 	url := fmt.Sprintf("https://%s%s", peerName, cmd)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		logger.Error("error creating search %s for peer: %v", url, err)
+		e.Logger.Error("error creating search %s for peer: %v", url, err)
 		return nil, err
 	}
+	req.AddCookie(
+		&http.Cookie{
+			Name:  "verified_claims",
+			Value: token,
+		},
+	)
 
 	res, err := e.HttpClient.Do(req)
 	if err != nil {
-		logger.Error("error searching peer: %v", err)
+		e.Logger.Error("error searching peer: %v", err)
 		return nil, err
 	}
 	if res.StatusCode != http.StatusOK {

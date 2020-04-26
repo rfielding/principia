@@ -151,10 +151,11 @@ func Encode(vc VerifiedClaims, trust *Trust) (string, error) {
 
 func EncodeWithDuration(vc VerifiedClaims, duration time.Duration, trust *Trust) (string, error) {
 	// Find the trust
-	iss := trust.Issuers[vc.Issuer]
-	if iss == nil {
-		return "", fmt.Errorf("Issuer %s not found", vc.Issuer)
+	if len(vc.Issuer) == 0 {
+		vc.Issuer = trust.IssuerName
 	}
+	iss := trust.Issuers[vc.Issuer]
+
 	// We need private key (identity) to sign
 	if iss.privatekey == nil {
 		return "", fmt.Errorf("We trust %s, but are not signers", iss.Name)
