@@ -31,7 +31,8 @@
 
         fn("../principia/available", function(t) {
           var j = JSON.parse(t.responseText);
-          var catalog = document.getElementById("catalog");
+          var catalogFront = document.getElementById("catalogFront");
+          var catalogBack = document.getElementById("catalogBack");
           for (item in j) {
             if (j[item].Expose) {
               var node = document.createElement("li");
@@ -41,12 +42,12 @@
               a.innerHtml = item;
               a.appendChild(t);
               node.appendChild(a);
-              catalog.appendChild(node);
+              catalogFront.appendChild(node);
             } else {
               var node = document.createElement("li");
               var t = document.createTextNode(item);
               node.appendChild(t);
-              catalog.appendChild(node);
+              catalogBack.appendChild(node);
             }
           }
         });
@@ -61,17 +62,23 @@
       <img id="mypicture" style="float:right"><img>
       Actions:
       <ul>
-        <li><a href="/oidc/login?state=/eWeb/">Google OIDC Login</a>
+        <li><a href="/oidc/login?state=/eWeb/">Login</a> - Google OAuth2/OIDC
         <li><a href="/oidc/logout?state=/eWeb/">Logout</a>
-        <li><a href="/oidc/self">self</a>
-        <li><a href="/oidc/claims">claims</a>
-        <li><a href="/principia/available">Services</a>
+        <li><a href="/oidc/self">self</a> - JWT signed with local X509 Cert, local permissions added
+        <li><a href="/oidc/claims">claims</a> - JWT claims from Google
+        <li><a href="/principia/available">Catalog</a> - Dynamic peer services
       </ul>
 
       <hr>
-      Services:
-      <ul id=catalog>
+
+      Front Services (WebSocket, and http):
+      <ul id=catalogFront>
       </ul>
+
+      Back Services (WebSocket, or http):
+      <ul id=catalogBack>
+      </ul>
+
     </div>
   </body>
 </html>
