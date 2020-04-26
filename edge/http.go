@@ -89,6 +89,9 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				e.wsTransport(rw, dest_conn)
 			} else {
 				path := "/" + r.RequestURI[2+len(spawn.Name):]
+				if spawn.KeepPrefix {
+					path = spawn.Name
+				}
 				url := fmt.Sprintf("http://%s%s", to, path)
 				req, err := http.NewRequest(r.Method, url, r.Body)
 				if err != nil {

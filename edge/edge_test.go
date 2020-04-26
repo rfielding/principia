@@ -93,8 +93,6 @@ func TestEdge(t *testing.T) {
 		OAUTH2_REDIRECT_URL:      "https://localhost:8032",
 		OAUTH2_PROVIDER:          "https://accounts.google.com",
 		OAUTH2_SCOPES:            "openid email profile email https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/profile.agerange.read",
-		HasPrefix:                "/oidc",
-		RedirectPrefix:           "",
 		// Provide a way to link claims to extra attributes
 		LinkClaims: linkClaims,
 	}
@@ -210,21 +208,24 @@ func TestEdge(t *testing.T) {
 		testLogger.Info("Available mongo:%s %s", d.Port, common.AsJsonPretty(d.CheckAvailability().Available))
 	}
 
+	eAuth1Svr, err := auth.NewServer(oauthconfig, eAuth1.Trust, eAuth1.Logger)
+	TryTest(t, err)
 	TryTest(t, eAuth1.Exec(edge.Spawn{
-		Name:        "eAuth",
+		Name:        "oidc",
 		PortIntoEnv: "EAUTH_PORT",
+		KeepPrefix:  true,
 		Run: edge.Command{
-			Cmd:       []string{"sleep", "50"},
-			SkipCheck: true,
+			Server: eAuth1Svr,
 		},
 	}))
 
+	eAuth2Svr, err := auth.NewServer(oauthconfig, eAuth2.Trust, eAuth2.Logger)
 	TryTest(t, eAuth2.Exec(edge.Spawn{
-		Name:        "eAuth",
+		Name:        "oidc",
 		PortIntoEnv: "EAUTH_PORT",
+		KeepPrefix:  true,
 		Run: edge.Command{
-			Cmd:       []string{"sleep", "30"},
-			SkipCheck: true,
+			Server: eAuth2Svr,
 		},
 	}))
 

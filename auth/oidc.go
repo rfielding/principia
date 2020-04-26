@@ -23,8 +23,6 @@ type OAuthConfig struct {
 	OAUTH2_REDIRECT_URL      string
 	OAUTH2_REDIRECT_CALLBACK string
 	OAUTH2_SCOPES            string
-	RedirectPrefix           string
-	HasPrefix                string
 	LinkClaims               LinkClaims
 }
 
@@ -281,16 +279,15 @@ func (a *Authenticator) TurnIDTokenIntoCookies(
 }
 
 func (a *Authenticator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	p := a.Config.HasPrefix
-	if r.URL.Path == p+"/cb" {
+	if r.URL.Path == "/oidc/cb" {
 		a.HandleOIDC(w, r)
 		return
 	}
-	if r.URL.Path == p+"/logout" {
+	if r.URL.Path == "/oidc/logout" {
 		a.HandleOIDCLogout(w, r)
 		return
 	}
-	if r.URL.Path == p+"/login" {
+	if r.URL.Path == "/oidc/login" {
 		// If there is an id_token, then turn it into userpolicy and redirect
 		idTokenCookie, _ := r.Cookie("id_token")
 		if idTokenCookie != nil {
@@ -299,23 +296,22 @@ func (a *Authenticator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		// Otherwise, just do the whole oidc handshake
 		redirTo := a.ClientConfig.AuthCodeURL(
-			a.Config.RedirectPrefix + r.URL.Query().Get("state"),
+			r.URL.Query().Get("state"),
 		)
 		http.Redirect(w, r, redirTo, http.StatusFound)
 		return
 	}
-	if r.URL.Path == p+"/claims" {
+	if r.URL.Path == "/oidc/claims" {
 		a.HandleClaims(w, r)
 		return
 	}
-	if r.URL.Path == p+"/self" {
+	if r.URL.Path == "/oidc/self" {
 		a.HandleSelf(w, r)
 		return
 	}
-	return
 }
 
-func NewOIDCServer(config *OAuthConfig, trust *Trust, logger common.Logger) (*http.Server, error) {
+func NewServer(config *OAuthConfig, trust *Trust, logger common.Logger) (*http.Server, error) {
 	a, err := NewAuthenticator(config, trust, logger)
 	if err != nil {
 		return nil, err

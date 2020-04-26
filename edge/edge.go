@@ -68,9 +68,10 @@ type Spawn struct {
 	Bind string
 	Port Port
 	// This is how we look up services, by name/instance
-	Name   string
-	Expose bool
-	Run    Command
+	Name       string
+	Expose     bool
+	KeepPrefix bool
+	Run        Command
 	// We can use this to have a port inserted upon spawn
 	PortIntoCmdArg int
 	PortIntoEnv    string
