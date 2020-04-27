@@ -378,34 +378,6 @@ func (e *Edge) Peer(host string, port Port) {
 	})
 }
 
-func (e *Edge) Tunnel(service string, port Port) error {
-	e.Logger.Info("e.Tunnel: %s %d", service, port)
-	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", e.HostSidecar, port))
-	if err != nil {
-		return err
-	}
-	tunnel := Tunnel{
-		Owner:    e,
-		Name:     service,
-		Port:     port,
-		Listener: listener,
-	}
-	e.Tunnels = append(e.Tunnels, tunnel)
-	go func() {
-		for {
-			tun_conn, err := listener.Accept()
-			if err != nil {
-				e.Logger.Error("unable to spawn: %v", err)
-				//continue
-				// Assume that we only fail to Accept when listener dies
-				return
-			}
-			e.wsTunnelTransport(tun_conn, service)
-		}
-	}()
-	return nil
-}
-
 func (e *Edge) Close() error {
 	e.Logger.Info("shutting down now!")
 	tunnels := e.Tunnels

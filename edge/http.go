@@ -107,16 +107,17 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
-				defer dest_conn.Close()
 				// If that worked, then hijack the connection incoming
 				e.Logger.Debug("transporting websocket to service %s", to)
 				src_conn, rw, err := e.wsHijack(w, r, r.Header.Get("Sec-WebSocket-Key"))
 				if err != nil {
+					dest_conn.Close()
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
-				defer src_conn.Close()
 				e.wsTransport(rw, dest_conn)
+				src_conn.Close()
+				dest_conn.Close()
 			} else {
 				path := "/" + r.RequestURI[2+len(spawn.Name):]
 				if spawn.KeepPrefix {
@@ -140,8 +141,8 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					w.Write([]byte(msg))
 					return
 				}
-				defer res.Body.Close()
 				io.Copy(w, res.Body)
+				res.Body.Close()
 			}
 			return
 		}
@@ -196,6 +197,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					// Copy the response code
 					w.WriteHeader(res.StatusCode)
 					io.Copy(w, res.Body)
+					res.Body.Close()
 				}
 				return
 			}
