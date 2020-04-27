@@ -38,7 +38,9 @@ func (e *Edge) wsHttps(w http.ResponseWriter, r *http.Request, addr string, url 
 		e.LogRet(w, http.StatusInternalServerError, err, "unable to setup websocket to volunteer %s: %v", addr, err)
 		return
 	}
-	e.Logger.Debug("tunnel websocket to volunteer %s", addr)
+	if e.DebugTunnelMessages {
+		e.Logger.Debug("tunnel websocket to volunteer %s", addr)
+	}
 	// Hijack our incoming to transport the websocket across these
 	wconn, rw, err := e.wsHijack(w, r, secKey)
 	if err != nil {
@@ -46,7 +48,9 @@ func (e *Edge) wsHttps(w http.ResponseWriter, r *http.Request, addr string, url 
 		e.LogRet(w, http.StatusInternalServerError, err, "unable to hijack connection: %v", err)
 		return
 	}
-	e.Logger.Debug("transport websocket to volunteer: %s", addr)
+	if e.DebugTunnelMessages {
+		e.Logger.Debug("transport websocket to volunteer: %s", addr)
+	}
 	e.wsTransport(rw, dest_conn)
 	wconn.Close()
 	dest_conn.Close()
@@ -85,7 +89,9 @@ func (e *Edge) wsHijack(w http.ResponseWriter, r *http.Request, wsKey string) (n
 	if err != nil {
 		return nil, nil, fmt.Errorf("Unable to get client hijack: %v", err)
 	}
-	e.Logger.Debug("connection is hijacked")
+	if e.DebugTunnelMessages {
+		e.Logger.Debug("connection is hijacked")
+	}
 	return conn, rw, nil
 }
 
@@ -98,7 +104,9 @@ func (e *Edge) wsTransport(up *bufio.ReadWriter, down net.Conn) {
 	go func() {
 		buf := make([]byte, 1024)
 		for {
-			e.Logger.Debug("up read wait")
+			if e.DebugTunnelMessages {
+				e.Logger.Debug("up read wait")
+			}
 			read, err := up.Read(buf)
 			if err == io.EOF {
 				break
@@ -108,23 +116,31 @@ func (e *Edge) wsTransport(up *bufio.ReadWriter, down net.Conn) {
 				break
 			}
 			//up.Flush()
-			e.Logger.Debug("up read %d", read)
+			if e.DebugTunnelMessages {
+				e.Logger.Debug("up read %d", read)
+			}
 			written, err := downw.Write(buf[0:read])
 			if err != nil {
 				e.Logger.Error("unable to write buffer down: %v", err)
 			}
-			e.Logger.Debug("down write %d", written)
+			if e.DebugTunnelMessages {
+				e.Logger.Debug("down write %d", written)
+			}
 			downw.Flush()
 		}
 		//up.Flush()
 		downw.Flush()
-		e.Logger.Debug("down finished")
+		if e.DebugTunnelMessages {
+			e.Logger.Debug("down finished")
+		}
 		wg.Done()
 	}()
 	go func() {
 		buf := make([]byte, 1024)
 		for {
-			e.Logger.Debug("down read wait")
+			if e.DebugTunnelMessages {
+				e.Logger.Debug("down read wait")
+			}
 			read, err := down.Read(buf)
 			if err == io.EOF {
 				break
@@ -134,7 +150,9 @@ func (e *Edge) wsTransport(up *bufio.ReadWriter, down net.Conn) {
 				break
 			}
 			//downw.Flush()
-			e.Logger.Debug("down read %d", read)
+			if e.DebugTunnelMessages {
+				e.Logger.Debug("down read %d", read)
+			}
 			written, err := up.Write(buf[0:read])
 			if err == io.EOF {
 				break
@@ -143,15 +161,23 @@ func (e *Edge) wsTransport(up *bufio.ReadWriter, down net.Conn) {
 				e.Logger.Error("unable to write buffer up: %v", err)
 				break
 			}
-			e.Logger.Debug("up write %d", written)
+			if e.DebugTunnelMessages {
+				e.Logger.Debug("up write %d", written)
+			}
 			up.Flush()
 		}
 		up.Flush()
-		e.Logger.Debug("up finished")
+		if e.DebugTunnelMessages {
+			e.Logger.Debug("up finished")
+		}
 		//downw.Flush()
 		wg.Done()
 	}()
-	e.Logger.Debug("waiting on down writer")
+	if e.DebugTunnelMessages {
+		e.Logger.Debug("waiting on down writer")
+	}
 	wg.Wait()
-	e.Logger.Debug("done waiting on down writer")
+	if e.DebugTunnelMessages {
+		e.Logger.Debug("done waiting on down writer")
+	}
 }

@@ -98,7 +98,9 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusUnauthorized)
 			}
 			to := fmt.Sprintf("%s:%d", e.HostSidecar, spawn.Port)
-			e.Logger.Debug("listener: GET %s -> %s %s", r.RequestURI, spawn.Name, to)
+			if e.DebugTunnelMessages {
+				e.Logger.Debug("listener: GET %s -> %s %s", r.RequestURI, spawn.Name, to)
+			}
 			if wantsWebsockets {
 				// Dial the destination in plaintext, with no websocket headers
 				dest_conn, err := net.DialTimeout("tcp", to, 10*time.Second)
@@ -108,7 +110,9 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				// If that worked, then hijack the connection incoming
-				e.Logger.Debug("transporting websocket to service %s", to)
+				if e.DebugTunnelMessages {
+					e.Logger.Debug("transporting websocket to service %s", to)
+				}
 				src_conn, rw, err := e.wsHijack(w, r, r.Header.Get("Sec-WebSocket-Key"))
 				if err != nil {
 					dest_conn.Close()
@@ -124,7 +128,9 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					path = "/" + spawn.Name + path
 				}
 				url := fmt.Sprintf("http://%s%s", to, path)
-				e.Logger.Info("try %s", url)
+				if e.DebugTunnelMessages {
+					e.Logger.Debug("try %s", url)
+				}
 				req, err := http.NewRequest(r.Method, url, r.Body)
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
@@ -166,7 +172,9 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				volunteer := volunteers[rv]
 				// We want exact same URI and headers, just different destination
 				url := fmt.Sprintf("https://%s%s", volunteer, r.RequestURI)
-				e.Logger.Debug("volunteer: %s %s -> %s", r.Method, url, volunteer)
+				if e.DebugTunnelMessages {
+					e.Logger.Debug("volunteer: %s %s -> %s", r.Method, url, volunteer)
+				}
 				req, err := http.NewRequest(r.Method, url, r.Body)
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)

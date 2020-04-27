@@ -104,31 +104,32 @@ type Edge struct {
 	// The name is how reverse proxy binds and load balances us
 	Name string
 	// We can use a Host that will be NAT, as long as Port is same at NAT and inside.
-	Host              string
-	Port              Port
-	Bind              string
-	HostSidecar       string
-	PortSidecar       Port
-	BindSidecar       string
-	Logger            common.Logger
-	Spawns            []Spawn
-	DefaultLease      time.Duration
-	Peers             []Peer
-	Tunnels           []Tunnel
-	IdentityFiles     IdentityFiles
-	HttpClient        *http.Client
-	Trust             *auth.Trust
-	TLSClientConfig   *tls.Config
-	InternalServer    http.Server
-	ExternalServer    http.Server
-	Availability      *Availability
-	AvailabilityLease time.Duration
-	Done              chan bool
-	HttpFilter        func(req *http.Request)
-	Authenticator     *auth.Authenticator
-	OAuthConfig       *auth.OAuthConfig
-	LinkClaims        auth.LinkClaims
-	DefaultURI        string
+	Host                string
+	Port                Port
+	Bind                string
+	HostSidecar         string
+	PortSidecar         Port
+	BindSidecar         string
+	Logger              common.Logger
+	Spawns              []Spawn
+	DefaultLease        time.Duration
+	Peers               []Peer
+	Tunnels             []Tunnel
+	IdentityFiles       IdentityFiles
+	HttpClient          *http.Client
+	Trust               *auth.Trust
+	TLSClientConfig     *tls.Config
+	InternalServer      http.Server
+	ExternalServer      http.Server
+	Availability        *Availability
+	AvailabilityLease   time.Duration
+	Done                chan bool
+	HttpFilter          func(req *http.Request)
+	Authenticator       *auth.Authenticator
+	OAuthConfig         *auth.OAuthConfig
+	LinkClaims          auth.LinkClaims
+	DefaultURI          string
+	DebugTunnelMessages bool
 }
 
 type Service struct {

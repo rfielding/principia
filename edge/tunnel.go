@@ -55,7 +55,9 @@ func (e *Edge) wsTunnelTransport(tun_conn net.Conn, service string) {
 		e.Logger.Error("tunnel unable to dial sidecar %s: %v", sidecar, err)
 		return
 	}
-	e.Logger.Debug("tunnel headers websocket to sidecar %s", sidecar)
+	if e.DebugTunnelMessages {
+		e.Logger.Debug("tunnel headers websocket to sidecar %s", sidecar)
+	}
 	servicePrefix := fmt.Sprintf("/%s/", service)
 	_, err = e.wsConsumeHeaders(sidecar, servicePrefix, sidecar_conn)
 	if err != nil {
@@ -64,18 +66,21 @@ func (e *Edge) wsTunnelTransport(tun_conn net.Conn, service string) {
 		e.Logger.Error("tunnel unable to run websocket headers: %v", err)
 		return
 	}
-
-	e.Logger.Debug("tunnel consuming websocket to sidecar %s", sidecar)
+	if e.DebugTunnelMessages {
+		e.Logger.Debug("tunnel consuming websocket to sidecar %s", sidecar)
+	}
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 	go func() {
 		io.Copy(tun_conn, sidecar_conn)
 		sidecar_conn.Close()
+		tun_conn.Close()
 		wg.Done()
 	}()
 	go func() {
 		io.Copy(sidecar_conn, tun_conn)
 		tun_conn.Close()
+		sidecar_conn.Close()
 		wg.Done()
 	}()
 	e.Logger.Debug("waiting for tunnel to consume websocket")
