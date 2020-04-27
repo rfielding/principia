@@ -32,48 +32,127 @@ func (e *Edge) Echo(w http.ResponseWriter, r *http.Request) {
 	closer.Close()
 }
 
-// ServeHTTP serves up http for this service
-func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if e.HttpFilter != nil {
-		e.HttpFilter(r)
-	}
-	if strings.HasPrefix(r.RequestURI, "http") {
-		e.LogRet(w, http.StatusBadRequest, nil, "A requestURL must be a fully qualified path, not %s", r.RequestURI)
+func (e *Edge) serveHTTPForVolunteer(w http.ResponseWriter, r *http.Request, canUseHidden bool, wantsWebsockets bool, service *Service) {
+	if !canUseHidden && !service.Expose {
+		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-
+	volunteers := service.Volunteers
+	// Pick a random volunteer
+	if len(volunteers) == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	rv := int(rand.Int31n(int32(len(volunteers))))
+	volunteer := volunteers[rv]
+	// We want exact same URI and headers, just different destination
+	url := fmt.Sprintf("https://%s%s", volunteer, r.RequestURI)
 	if e.DebugTunnelMessages {
-		e.Logger.Debug("handling: %s", r.URL.Path)
+		e.Logger.Debug("volunteer: %s %s -> %s", r.Method, url, volunteer)
 	}
-
-	if r.URL.Path == "/" && len(e.DefaultURI) > 0 {
-		http.Redirect(w, r, e.DefaultURI, http.StatusFound)
+	req, err := http.NewRequest(r.Method, url, r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		msg := fmt.Sprintf("Failed To Create Request: %v", err)
+		w.Write([]byte(msg))
+		return
 	}
-
-	available := e.CheckAvailability().Available
-	// Find static items
-	if r.Method == "GET" {
-		if r.RequestURI == "/principia/echo" {
-			e.Echo(w, r)
-			return
-		}
-		if r.RequestURI == "/principia/available" {
-			w.Write(common.AsJsonPretty(available))
-			return
-		}
-		if r.RequestURI == "/principia/peers" {
-			w.Write(common.AsJsonPretty(e.Peers))
-			return
-		}
+	req.Header = r.Header.Clone()
+	cl := e.HttpClient
+	res, err := cl.Do(req)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		msg := fmt.Sprintf("Failed To Perform Request: %v", err)
+		w.Write([]byte(msg))
+		return
 	}
+	// Copy the body
+	if wantsWebsockets {
+		e.wsHttps(w, r, volunteer, r.RequestURI)
+	} else {
+		// Copy over the headers
+		for k, a := range res.Header {
+			for i := range a {
+				w.Header().Add(k, a[i])
+			}
+		}
+		// Copy the response code
+		w.WriteHeader(res.StatusCode)
+		io.Copy(w, res.Body)
+		res.Body.Close()
+	}
+}
 
-	wantsWebsockets := r.Header.Get("Connection") == "Upgrade" &&
-		r.Header.Get("Upgrade") == "websocket"
-
+func (e *Edge) serveHTTPForSpawn(w http.ResponseWriter, r *http.Request, canUseHidden bool, wantsWebsockets bool, spawn Spawn) {
+	if !canUseHidden && !spawn.Expose {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	to := fmt.Sprintf("%s:%d", e.HostSidecar, spawn.Port)
 	if e.DebugTunnelMessages {
-		e.Logger.Debug("%s %s wantsWebsockets=%t", r.Method, r.RequestURI, wantsWebsockets)
+		e.Logger.Debug("listener: GET %s -> %s %s", r.RequestURI, spawn.Name, to)
 	}
+	if wantsWebsockets {
+		// Dial the destination in plaintext, with no websocket headers
+		dest_conn, err := net.DialTimeout("tcp", to, 10*time.Second)
+		if err != nil {
+			e.Logger.Error("unable to connect to %s: %v", to, err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		// If that worked, then hijack the connection incoming
+		if e.DebugTunnelMessages {
+			e.Logger.Debug("transporting websocket to service %s", to)
+		}
+		src_conn, rw, err := e.wsHijack(w, r, r.Header.Get("Sec-WebSocket-Key"))
+		if err != nil {
+			dest_conn.Close()
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		e.wsTransport(rw, dest_conn)
+		src_conn.Close()
+		dest_conn.Close()
+	} else {
+		path := "/" + r.RequestURI[2+len(spawn.Name):]
+		if spawn.KeepPrefix {
+			path = "/" + spawn.Name + path
+		}
+		url := fmt.Sprintf("http://%s%s", to, path)
+		if e.DebugTunnelMessages {
+			e.Logger.Debug("try %s", url)
+		}
+		req, err := http.NewRequest(r.Method, url, r.Body)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			msg := fmt.Sprintf("Failed To Create Request: %v", err)
+			e.Logger.Error(msg)
+			w.Write([]byte(msg))
+			return
+		}
+		// Copy all headers into new request
+		req.Header = r.Header.Clone()
+		res, err := e.HttpClient.Do(req)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			msg := fmt.Sprintf("Failed To Perform Request: %v", err)
+			w.Write([]byte(msg))
+			return
+		}
+		// Copy over the headers
+		for k, a := range res.Header {
+			for i := range a {
+				w.Header().Add(k, a[i])
+			}
+		}
+		// Copy the response code
+		w.WriteHeader(res.StatusCode)
+		io.Copy(w, res.Body)
+		res.Body.Close()
+	}
+}
 
+func (e *Edge) findPrivileges(r *http.Request) (bool, auth.VerifiedClaims) {
 	canUseHidden := false
 	var err error
 	var vc auth.VerifiedClaims
@@ -94,6 +173,54 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			e.Logger.Debug("verified_claims cookie: %s... in %s", err, r.Header.Get("Cookie"))
 		}
 	}
+	return canUseHidden, vc
+}
+
+// ServeHTTP serves up http for this service
+func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if e.HttpFilter != nil {
+		e.HttpFilter(r)
+	}
+	if strings.HasPrefix(r.RequestURI, "http") {
+		e.LogRet(w, http.StatusBadRequest, nil, "A requestURL must be a fully qualified path, not %s", r.RequestURI)
+		return
+	}
+
+	if e.DebugTunnelMessages {
+		e.Logger.Debug("handling: %s", r.URL.Path)
+	}
+
+	if r.URL.Path == "/" && len(e.DefaultURI) > 0 {
+		http.Redirect(w, r, e.DefaultURI, http.StatusFound)
+		return
+	}
+
+	available := e.CheckAvailability().Available
+	// Find static items
+	if r.Method == "GET" {
+		if r.RequestURI == "/principia/echo" {
+			e.Echo(w, r)
+			return
+		}
+		if r.RequestURI == "/principia/available" {
+			w.Write(common.AsJsonPretty(available))
+			return
+		}
+		if r.RequestURI == "/principia/peers" {
+			w.Write(common.AsJsonPretty(e.Peers))
+			return
+		}
+	}
+
+	wantsWebsockets :=
+		r.Header.Get("Connection") == "Upgrade" &&
+			r.Header.Get("Upgrade") == "websocket"
+
+	if e.DebugTunnelMessages {
+		e.Logger.Debug("%s %s wantsWebsockets=%t", r.Method, r.RequestURI, wantsWebsockets)
+	}
+
+	canUseHidden, vc := e.findPrivileges(r)
 
 	if len(vc.Email) > 0 {
 		e.Logger.Info("visit by: %s", vc.Email)
@@ -103,72 +230,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for _, spawn := range e.Spawns {
 		expectedServicePrefix := fmt.Sprintf("/%s/", spawn.Name)
 		if strings.HasPrefix(r.RequestURI, expectedServicePrefix) {
-			if !canUseHidden && !spawn.Expose {
-				w.WriteHeader(http.StatusUnauthorized)
-				return
-			}
-			to := fmt.Sprintf("%s:%d", e.HostSidecar, spawn.Port)
-			if e.DebugTunnelMessages {
-				e.Logger.Debug("listener: GET %s -> %s %s", r.RequestURI, spawn.Name, to)
-			}
-			if wantsWebsockets {
-				// Dial the destination in plaintext, with no websocket headers
-				dest_conn, err := net.DialTimeout("tcp", to, 10*time.Second)
-				if err != nil {
-					e.Logger.Error("unable to connect to %s: %v", to, err)
-					w.WriteHeader(http.StatusInternalServerError)
-					return
-				}
-				// If that worked, then hijack the connection incoming
-				if e.DebugTunnelMessages {
-					e.Logger.Debug("transporting websocket to service %s", to)
-				}
-				src_conn, rw, err := e.wsHijack(w, r, r.Header.Get("Sec-WebSocket-Key"))
-				if err != nil {
-					dest_conn.Close()
-					w.WriteHeader(http.StatusInternalServerError)
-					return
-				}
-				e.wsTransport(rw, dest_conn)
-				src_conn.Close()
-				dest_conn.Close()
-			} else {
-				path := "/" + r.RequestURI[2+len(spawn.Name):]
-				if spawn.KeepPrefix {
-					path = "/" + spawn.Name + path
-				}
-				url := fmt.Sprintf("http://%s%s", to, path)
-				if e.DebugTunnelMessages {
-					e.Logger.Debug("try %s", url)
-				}
-				req, err := http.NewRequest(r.Method, url, r.Body)
-				if err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
-					msg := fmt.Sprintf("Failed To Create Request: %v", err)
-					e.Logger.Error(msg)
-					w.Write([]byte(msg))
-					return
-				}
-				// Copy all headers into new request
-				req.Header = r.Header.Clone()
-				res, err := e.HttpClient.Do(req)
-				if err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
-					msg := fmt.Sprintf("Failed To Perform Request: %v", err)
-					w.Write([]byte(msg))
-					return
-				}
-				// Copy over the headers
-				for k, a := range res.Header {
-					for i := range a {
-						w.Header().Add(k, a[i])
-					}
-				}
-				// Copy the response code
-				w.WriteHeader(res.StatusCode)
-				io.Copy(w, res.Body)
-				res.Body.Close()
-			}
+			e.serveHTTPForSpawn(w, r, canUseHidden, wantsWebsockets, spawn)
 			return
 		}
 	}
@@ -183,56 +245,13 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Search volunteers - leave url alone
 	for name := range available {
+		service := available[name]
 		if strings.HasPrefix(r.RequestURI, "/"+name+"/") {
-			if !canUseHidden && !available[name].Expose {
-				w.WriteHeader(http.StatusUnauthorized)
-				return
-			}
-			volunteers := available[name].Volunteers
-			// Pick a random volunteer
-			if len(volunteers) > 0 {
-				rv := int(rand.Int31n(int32(len(volunteers))))
-				volunteer := volunteers[rv]
-				// We want exact same URI and headers, just different destination
-				url := fmt.Sprintf("https://%s%s", volunteer, r.RequestURI)
-				if e.DebugTunnelMessages {
-					e.Logger.Debug("volunteer: %s %s -> %s", r.Method, url, volunteer)
-				}
-				req, err := http.NewRequest(r.Method, url, r.Body)
-				if err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
-					msg := fmt.Sprintf("Failed To Create Request: %v", err)
-					w.Write([]byte(msg))
-					return
-				}
-				req.Header = r.Header.Clone()
-				cl := e.HttpClient
-				res, err := cl.Do(req)
-				if err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
-					msg := fmt.Sprintf("Failed To Perform Request: %v", err)
-					w.Write([]byte(msg))
-					return
-				}
-				// Copy the body
-				if wantsWebsockets {
-					e.wsHttps(w, r, volunteer, r.RequestURI)
-				} else {
-					// Copy over the headers
-					for k, a := range res.Header {
-						for i := range a {
-							w.Header().Add(k, a[i])
-						}
-					}
-					// Copy the response code
-					w.WriteHeader(res.StatusCode)
-					io.Copy(w, res.Body)
-					res.Body.Close()
-				}
-				return
-			}
+			e.serveHTTPForVolunteer(w, r, canUseHidden, wantsWebsockets, service)
+			return
 		}
 	}
+
 	e.LogRet(w, http.StatusNotFound, nil, "could not find: %s %s, have %s", r.Method, r.RequestURI, common.AsJsonPretty(available))
 }
 
