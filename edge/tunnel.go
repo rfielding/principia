@@ -83,9 +83,13 @@ func (e *Edge) wsTunnelTransport(tun_conn net.Conn, service string) {
 		sidecar_conn.Close()
 		wg.Done()
 	}()
-	e.Logger.Debug("waiting for tunnel to consume websocket")
+	if e.DebugTunnelMessages {
+		e.Logger.Debug("waiting for tunnel to consume websocket")
+	}
 	wg.Wait()
-	e.Logger.Debug("tunnel consumed websocket to sidecar %s", sidecar)
+	if e.DebugTunnelMessages {
+		e.Logger.Debug("tunnel consumed websocket to sidecar %s", sidecar)
+	}
 }
 
 // wsConsumeHeaders is used when we made a TCP connection to a socket
