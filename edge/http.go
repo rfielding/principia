@@ -90,8 +90,11 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					common.ArrayHas(vc.Values["role"], "peer")
 		}
 	} else {
-		e.Logger.Error("verified_claims cookie: %s... in %s", err, r.Header.Get("Cookie"))
+		if e.DebugTunnelMessages {
+			e.Logger.Debug("verified_claims cookie: %s... in %s", err, r.Header.Get("Cookie"))
+		}
 	}
+
 	if len(vc.Email) > 0 {
 		e.Logger.Info("visit by: %s", vc.Email)
 	}
@@ -172,6 +175,14 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Search volunteers - leave url alone
 	for name := range available {
 		if strings.HasPrefix(r.RequestURI, "/"+name+"/") {
+			if available[name] == nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			if !canUseHidden && !available[name].Expose {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
 			volunteers := available[name].Volunteers
 			// Pick a random volunteer
 			if len(volunteers) > 0 {
