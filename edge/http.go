@@ -102,6 +102,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.RequestURI, expectedServicePrefix) {
 			if !canUseHidden && !spawn.Expose {
 				w.WriteHeader(http.StatusUnauthorized)
+				return
 			}
 			to := fmt.Sprintf("%s:%d", e.HostSidecar, spawn.Port)
 			if e.DebugTunnelMessages {
