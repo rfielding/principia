@@ -10,6 +10,7 @@ import (
 	"net/http"
 	//"os"
 	"github.com/rfielding/principia/common"
+	"net/http/httputil"
 	"strings"
 	"time"
 )
@@ -289,6 +290,12 @@ func (a *Authenticator) TurnIDTokenIntoCookies(
 }
 
 func (a *Authenticator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	reqBytes, err := httputil.DumpRequest(r, false)
+	if err != nil {
+		a.Logger.Error("decoding request: %v", err)
+	}
+	a.Logger.Info("%s", string(reqBytes))
+
 	if r.URL.Path == "/oidc/cb" {
 		a.HandleOIDC(w, r)
 		return

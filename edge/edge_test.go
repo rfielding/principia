@@ -90,7 +90,7 @@ func TestEdge(t *testing.T) {
 		OAUTH2_CLIENT_ID:         "117885021249-ptm2h0v2oqfljq5hbj785trpcrb1m3s4.apps.googleusercontent.com",
 		OAUTH2_CLIENT_SECRET:     "URC1G9gQ_LBWGoyg7JWAWimh",
 		OAUTH2_REDIRECT_CALLBACK: "/oidc/cb",
-		OAUTH2_REDIRECT_URL:      "https://localhost:8032",
+		OAUTH2_REDIRECT_URL:      "https://localhost:8022",
 		OAUTH2_PROVIDER:          "https://accounts.google.com",
 		OAUTH2_SCOPES:            "openid email profile email https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/profile.agerange.read",
 		// Provide a way to link claims to extra attributes
@@ -109,6 +109,14 @@ func TestEdge(t *testing.T) {
 	Spawn a bunch of Edge machines.  They are
 	effectively identical.
 	*/
+	eWeb, err := edge.Start(&edge.Edge{
+		Host:          "localhost",
+		IdentityFiles: idFiles,
+		OAuthConfig:   oauthconfig,
+		DefaultURI:    "/eWeb/",
+	})
+	TryTest(t, err)
+	defer eWeb.Close()
 
 	// This is a sidecar for a database on random port
 	eDB, err := edge.Start(&edge.Edge{
@@ -145,15 +153,6 @@ func TestEdge(t *testing.T) {
 	})
 	TryTest(t, err)
 	defer redis_eWeb.Close()
-
-	eWeb, err := edge.Start(&edge.Edge{
-		Host:          "localhost",
-		IdentityFiles: idFiles,
-		OAuthConfig:   oauthconfig,
-		DefaultURI:    "/eWeb/",
-	})
-	TryTest(t, err)
-	defer eWeb.Close()
 
 	// If this app is just passed in a list of peers...
 	eWebPeers := []*edge.Edge{eDB, eAuth1, eAuth2, mongo, redis_eWeb}
@@ -337,7 +336,7 @@ func TestEdge(t *testing.T) {
 		}
 	}
 
-	testLogger.Info("https://%s/", eWeb.PeerName())
+	testLogger.Info("!!!! CONNECT TO https://%s/", eWeb.PeerName())
 
 	time.Sleep(5 * time.Minute)
 }

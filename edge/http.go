@@ -149,7 +149,8 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					w.Write([]byte(msg))
 					return
 				}
-				req.Header = r.Header
+				// Copy all headers into new request
+				req.Header = r.Header.Clone()
 				res, err := e.HttpClient.Do(req)
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
@@ -157,6 +158,14 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					w.Write([]byte(msg))
 					return
 				}
+				// Copy over the headers
+				for k, a := range res.Header {
+					for i := range a {
+						w.Header().Add(k, a[i])
+					}
+				}
+				// Copy the response code
+				w.WriteHeader(res.StatusCode)
 				io.Copy(w, res.Body)
 				res.Body.Close()
 			}
@@ -175,10 +184,6 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Search volunteers - leave url alone
 	for name := range available {
 		if strings.HasPrefix(r.RequestURI, "/"+name+"/") {
-			if available[name] == nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
 			if !canUseHidden && !available[name].Expose {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
@@ -200,7 +205,6 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					w.Write([]byte(msg))
 					return
 				}
-				// XXX does this really correctly copy all headers?
 				req.Header = r.Header.Clone()
 				cl := e.HttpClient
 				res, err := cl.Do(req)
