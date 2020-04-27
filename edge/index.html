@@ -58,14 +58,20 @@
   <body>
     <div style="float:clear">
       <hr style="clear:both">
+      
       <b><span id="myname"></span></b>
       <img id="mypicture" style="float:right"><img>
-      <b>Actions:</b>
+
+      <b>OAuth2 / OIDC:</b>
       <ul>
         <li><a href="/oidc/login?state=/eWeb/">/oidc/login</a> - Google OAuth2/OIDC
         <li><a href="/oidc/logout?state=/eWeb/">/oidc/logout</a>
         <li><a href="/oidc/self">/oidc/self</a> - JWT signed with local X509 Cert, local permissions added
         <li><a href="/oidc/claims">/oidc/claims</a> - JWT claims from Google
+      </ul>
+
+      <b>Auto Discovery:</b>
+      <ul>
         <li><a href="/principia/available">/principia/available</a> - Dynamic service catalog
         <li><a href="/principia/peers">/principia/peers</a> - Peer TLS sidecar/edge servers we know of
       </ul>
