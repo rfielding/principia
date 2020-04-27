@@ -41,7 +41,10 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		e.LogRet(w, http.StatusBadRequest, nil, "A requestURL must be a fully qualified path, not %s", r.RequestURI)
 		return
 	}
-	e.Logger.Info("handling: %s", r.URL.Path)
+
+	if e.DebugTunnelMessages {
+		e.Logger.Debug("handling: %s", r.URL.Path)
+	}
 
 	if r.URL.Path == "/" && len(e.DefaultURI) > 0 {
 		http.Redirect(w, r, e.DefaultURI, http.StatusFound)
@@ -66,7 +69,10 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	wantsWebsockets := r.Header.Get("Connection") == "Upgrade" &&
 		r.Header.Get("Upgrade") == "websocket"
-	e.Logger.Debug("%s %s wantsWebsockets=%t", r.Method, r.RequestURI, wantsWebsockets)
+
+	if e.DebugTunnelMessages {
+		e.Logger.Debug("%s %s wantsWebsockets=%t", r.Method, r.RequestURI, wantsWebsockets)
+	}
 
 	canUseHidden := false
 	var err error

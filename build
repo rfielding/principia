@@ -7,6 +7,6 @@ else
   ./mkcerts
 fi
 
-(sleep 30 && mongo localhost:8036/test --eval "show dbs") &
+(sleep 30 && mongo localhost:8036/test --eval "db.items.count()") &
 
 (go fmt ./... && cd edge && go test)

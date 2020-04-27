@@ -27,12 +27,13 @@ type OAuthConfig struct {
 }
 
 type Authenticator struct {
-	provider     *oidc.Provider
-	ClientConfig oauth2.Config
-	ctx          context.Context
-	Trust        *Trust
-	Config       *OAuthConfig
-	Logger       common.Logger
+	provider          *oidc.Provider
+	ClientConfig      oauth2.Config
+	ctx               context.Context
+	Trust             *Trust
+	Config            *OAuthConfig
+	Logger            common.Logger
+	DebugOIDCMessages bool
 }
 
 func NewAuthenticator(config *OAuthConfig, trust *Trust, logger common.Logger) (*Authenticator, error) {

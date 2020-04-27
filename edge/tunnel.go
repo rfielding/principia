@@ -29,9 +29,8 @@ func (e *Edge) Tunnel(service string, port Port) error {
 			tun_conn, err := listener.Accept()
 			if err != nil {
 				e.Logger.Error("unable to spawn: %v", err)
-				//continue
-				// Assume that we only fail to Accept when listener dies
-				continue
+				// We only get errors here if listener is closed
+				break
 			}
 			e.wsTunnelTransport(tun_conn, service)
 			tun_conn.Close()
