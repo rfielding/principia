@@ -84,15 +84,19 @@ func (e *Edge) serveHTTPForVolunteer(w http.ResponseWriter, r *http.Request, can
 }
 
 func (e *Edge) serveHTTPForSpawn(w http.ResponseWriter, r *http.Request, canUseHidden bool, wantsWebsockets bool, spawn Spawn) {
+
 	if !canUseHidden && !spawn.Expose {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
+
 	to := fmt.Sprintf("%s:%d", e.HostSidecar, spawn.Port)
 	if e.DebugTunnelMessages {
 		e.Logger.Debug("listener: GET %s -> %s %s", r.RequestURI, spawn.Name, to)
 	}
+
 	if wantsWebsockets {
+
 		// Dial the destination in plaintext, with no websocket headers
 		dest_conn, err := net.DialTimeout("tcp", to, 10*time.Second)
 		if err != nil {
@@ -100,28 +104,35 @@ func (e *Edge) serveHTTPForSpawn(w http.ResponseWriter, r *http.Request, canUseH
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+
 		// If that worked, then hijack the connection incoming
 		if e.DebugTunnelMessages {
 			e.Logger.Debug("transporting websocket to service %s", to)
 		}
+
 		src_conn, rw, err := e.wsHijack(w, r, r.Header.Get("Sec-WebSocket-Key"))
 		if err != nil {
 			dest_conn.Close()
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+
 		e.wsTransport(rw, dest_conn)
 		src_conn.Close()
 		dest_conn.Close()
+
 	} else {
+
 		path := "/" + r.RequestURI[2+len(spawn.Name):]
 		if spawn.KeepPrefix {
 			path = "/" + spawn.Name + path
 		}
+
 		url := fmt.Sprintf("http://%s%s", to, path)
 		if e.DebugTunnelMessages {
 			e.Logger.Debug("try %s", url)
 		}
+
 		req, err := http.NewRequest(r.Method, url, r.Body)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -130,6 +141,7 @@ func (e *Edge) serveHTTPForSpawn(w http.ResponseWriter, r *http.Request, canUseH
 			w.Write([]byte(msg))
 			return
 		}
+
 		// Copy all headers into new request
 		req.Header = r.Header.Clone()
 		res, err := e.HttpClient.Do(req)
@@ -139,12 +151,14 @@ func (e *Edge) serveHTTPForSpawn(w http.ResponseWriter, r *http.Request, canUseH
 			w.Write([]byte(msg))
 			return
 		}
+
 		// Copy over the headers
 		for k, a := range res.Header {
 			for i := range a {
 				w.Header().Add(k, a[i])
 			}
 		}
+
 		// Copy the response code
 		w.WriteHeader(res.StatusCode)
 		io.Copy(w, res.Body)
@@ -228,8 +242,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Find local spawns - we modify the url
 	for _, spawn := range e.Spawns {
-		expectedServicePrefix := fmt.Sprintf("/%s/", spawn.Name)
-		if strings.HasPrefix(r.RequestURI, expectedServicePrefix) {
+		if strings.HasPrefix(r.RequestURI, "/"+spawn.Name+"/") {
 			e.serveHTTPForSpawn(w, r, canUseHidden, wantsWebsockets, spawn)
 			return
 		}
