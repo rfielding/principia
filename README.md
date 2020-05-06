@@ -34,7 +34,9 @@ As an example, every Edge (in purple) has a TLS entry point for entering through
 
 - There is _always_ a TLS port on front of Edge.
 - There is _always_ a plaintext port on the back of it, which is the sidecar.
+- Talking to sidecar has prefixes, so that sidecar can always host multiple services.
 - The sidecar _always_ controls launching binaries inside of it.  That way:
+  - Config duplication between sidecar and service is not necessary, as the Edge gets config and passes it, possibly modified.
   - It can respond if a process dies.
   - It can alter env vars and parameters.
   - It can ask another edge to perform the actual launch, for location independence.
